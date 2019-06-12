@@ -59,8 +59,6 @@ void train_fwd_branch_layer(branch_layer *l)
 {
   START_CNN_TIMER(fwd_t);
 
-  // do nothing
-
   STOP_CNN_TIMER(fwd_t);
 }
 
