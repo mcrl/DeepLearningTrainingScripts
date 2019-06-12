@@ -364,29 +364,29 @@ void vgg_dump(FILE *f)
 
   for (int i = 0, j = 0; i < 13; i++) {
     sprintf(buf, "conv%d", i);
-    DUMP_BOTH( net.conv[i], buf, f);
+    DUMP_BOTH(net.conv[i], buf, f);
     sprintf(buf, "relu%d", i);
-    DUMP_BOTH( net.relu[i], buf, f);
+    DUMP_BOTH(net.relu[i], buf, f);
 
     if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
       sprintf(buf, "pool%d", i);
-      DUMP_BOTH( net.pool[j], buf, f);
+      DUMP_BOTH(net.pool[j], buf, f);
       j++;
     }
   }
 
   for (int i = 0; i < 3; i++) {
     sprintf(buf, "fc%d", i);
-    DUMP_BOTH( net.fc[i], buf, f);
+    DUMP_BOTH(net.fc[i], buf, f);
 
     if (i < 2) {
       sprintf(buf, "fc_relu%d", i);
-      DUMP_BOTH( net.fc_relu[i], buf, f);
+      DUMP_BOTH(net.fc_relu[i], buf, f);
     }
   }
 
   sprintf(buf, "softmax");
-  DUMP_BOTH( net.softmax, buf, f);
+  DUMP_BOTH(net.softmax, buf, f);
 }
 
 void vgg_check(FILE *f)
