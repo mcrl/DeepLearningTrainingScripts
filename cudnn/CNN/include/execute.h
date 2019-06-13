@@ -90,8 +90,7 @@ int execute_softmax_fwd(
 
 /* Update Weight */
 int execute_apply_gradient(
-    cudnnDataType_t dataType,
-    const void *learning_rate,
+    const float learning_rate,
     gpu_mem dw, gpu_mem w);
 
 ////////////////////////////////////////////////////////////

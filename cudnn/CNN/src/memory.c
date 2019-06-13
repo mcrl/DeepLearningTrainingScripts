@@ -31,6 +31,10 @@ static inline int distribute(int n, int dev)
 
 int __init_object_manager()
 {
+  static bool initialized = false;
+
+  if (initialized) return -1;
+
   ncclGroupStart();
 
   for (int dev = 0; dev < num_devices; dev++) {
@@ -40,6 +44,8 @@ int __init_object_manager()
   }
 
   ncclGroupEnd();
+
+  initialized = true;
 
   return 0;
 }

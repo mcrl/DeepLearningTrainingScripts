@@ -15,12 +15,12 @@
 ////////////////////////////////////////////////////////////
 
 typedef enum {
-  DATA,
-  DATA_GRADIENT,
-  WEIGHT,
-  WEIGHT_GRADIENT,
-  WORK_SPACE,
-  RESERVE_SPACE
+  DATA,             // reserved distributed input/output
+  DATA_GRADIENT,    // reusable distributed input/output
+  WEIGHT,           // reserved shared input
+  WEIGHT_GRADIENT,  // reusable shared output
+  WORK_SPACE,       // reusable private output
+  RESERVE_SPACE     // reusable private input/output
 } gpu_memory_object_t;
 
 struct _gpu_memory_object {
@@ -38,7 +38,7 @@ struct _gpu_memory_object {
 
   bool reserved;
   bool distributed;
-  bool consistent;
+  bool consistent; // NOTE: Are we need this flag?
 };
 
 typedef struct _gpu_memory_object *gpu_mem;
