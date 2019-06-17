@@ -10,102 +10,85 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
+#include "memory.h"
+#include "execute.h"
 
-static float one = 1.0f;
-static float zero = 0.0f;
 
 void init_pool_layer(
-    pool_layer *l, cudnnHandle_t cudnn,
-    int batch_size,
-    int filter_height, int filter_width,
-    int pad_height, int pad_width,
-    int stride_x, int stride_y,
-    int channel, int height, int width, POOL_TYPE type)
+    pool_layer *l, int batch_size, int filter_height, int filter_width, 
+    int pad_height, int pad_width, int stride_height, int stride_width,
+    int channel, int input_height, int input_width, pool_type type)
 {
-  l->cudnn = cudnn;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
   l->filter_height = filter_height;
   l->filter_width = filter_width;
-  l->stride_x = stride_x;
-  l->stride_y = stride_y;
   l->pad_height = pad_height;
   l->pad_width = pad_width;
+  l->stride_height = stride_height;
+  l->stride_width = stride_width;
+
+  l->batch_size = batch_size;
   l->channel = channel;
+  l->input_height = input_height;
+  l->input_width = input_width;
+  l->output_height = CALC_SIZE(input_height, filter_height, pad_height, stride_height);
+  l->output_width = CALC_SIZE(input_width, filter_width, pad_width, stride_width);
+
   l->type = type;
 
   l->input = NULL;
+  l->d_input = NULL;
+
+  l->output = NULL;
   l->d_output = NULL;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
+  clear_time_pool_layer(l);
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
-
+  ////////////////////////////////////////////////////////////////
+  // 2. Set Pooling Descriptor
+  ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreatePoolingDescriptor(&l->pooling_desc));
 
-  const int height_output =
-    CALC_SIZE(height, l->filter_height, l->pad_height, l->stride_x);
-
-  const int width_output =
-    CALC_SIZE(width, l->filter_width, l->pad_width, l->stride_y);
-
-  l->height = height;
-  l->width = width;
-  l->height_output = height_output;
-  l->width_output = width_output;
- 
-  MALLOC_TENSOR_FLOAT(&l->output, batch_size, l->channel, height_output, width_output);
-  MALLOC_TENSOR_FLOAT(&l->d_input, batch_size, l->channel, height, width);
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, l->channel, height_output, width_output));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, l->channel, height_output, width_output));
-
+  // l->type == MAX_T
   chkCUDNN(cudnnSetPooling2dDescriptor(
-        l->pooling_desc,
-        (l->type == max) ? CUDNN_POOLING_MAX_DETERMINISTIC : CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING,
-        CUDNN_NOT_PROPAGATE_NAN,
-        filter_height, filter_width,
-        pad_height, pad_width,
-        stride_x, stride_y));
+        l->pool_desc, CUDNN_POOLING_MAX_DETERMINISTIC,
+        CUDNN_NOT_PROPAGATE_NAN, filter_height, filter_width,
+        pad_height, pad_width, stride_height, stride_width));
+
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->input_height, l->input_width);
+
+  create_buffer[DATA_GRADIENT](
+      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->input_height, l->input_width);
+
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->output_height, l->output_width);
+
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->output_height, l->output_width);
 }
 
 void train_fwd_pool_layer(pool_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  chkCUDNN(cudnnPoolingForward(
-        l->cudnn, l->pooling_desc,
-        &one, l->input_desc, l->input,
-        &zero, l->output_desc, l->output));
-
+  execute_pool_fwd(l->pool_desc, l->input, l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_pool_layer(pool_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  chkCUDNN(cudnnPoolingBackward(
-        l->cudnn, l->pooling_desc,
-        &one, l->output_desc, l->output,
-        l->d_output_desc, l->d_output, l->input_desc, l->input,
-        &zero, l->d_input_desc, l->d_input));
-
+  execute_pool_fwd(
+      l->pool_desc, l->output, l->d_output, l->input, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 

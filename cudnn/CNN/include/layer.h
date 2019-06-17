@@ -164,34 +164,34 @@ do {\
 //PARAM INIT
 #define INIT_CONV_RES(l) \
 do {\
-  size_t csz = PSIZE_CONV(l) / sizeof(float);\
-  float n_in = (l).filter_height * (l).filter_width * (l).channels_in;\
-  float n_out = (l).filter_height * (l).filter_width * (l).channels_out;\
+  float n_in = (l)->filter_height * (l)->filter_width * (l)->input_channel;\
+  float n_out = (l)->filter_height * (l)->filter_width * (l)->output_channel;\
+  size_t csz = (l)->filter_height * (l)->filter_width * (l)->input_channel * (l)->output_channel;\
   INITIALIZE_RAND_NORM_SCALE(param, csz, sqrt(2 / (n_out)));\
   param += set_conv_filter(l, param);\
 } while (0) 
 
 #define INIT_FC(l) \
 do {\
-  size_t csz = PSIZE_FC(l) / sizeof(float);\
-  float n_in = (l).in;\
-  float n_out = (l).out;\
+  float n_in = (l)->in;\
+  float n_out = (l)->out;\
+  size_t csz = n_in * n_out;\
   INITIALIZE_RAND_SCALE(param, csz, sqrt(2 / (n_in + n_out)));\
   param += set_fc_weight(l, param);\
 } while (0)
 
 #define INIT_CONV(l) \
 do {\
-  size_t csz = PSIZE_CONV(l) / sizeof(float);\
-  float n_in = (l).filter_height * (l).filter_width * (l).channels_in;\
-  float n_out = (l).filter_height * (l).filter_width * (l).channels_out;\
+  float n_in = (l)->filter_height * (l)->filter_width * (l)->input_channel;\
+  float n_out = (l)->filter_height * (l)->filter_width * (l)->output_channel;\
+  size_t csz = (l)->filter_height * (l)->filter_width * (l)->input_channel * (l)->output_channel;\
   INITIALIZE_RAND_SCALE(param, csz, sqrt(6 / (n_in + n_out)));\
   param += set_conv_filter(l, param);\
 } while (0)
 
 #define INIT_BN(l) \
 do {\
-  int cnt = (l).channel;\
+  int cnt = (l)->channel;\
   INITIALIZE_CONST(param, cnt, 1.0);\
   INITIALIZE_CONST(param + cnt, cnt, 0.0);\
   param += set_bn_vars(l, param);\
@@ -199,7 +199,7 @@ do {\
 
 #define INIT_BIAS(l) \
 do {\
-  int cnt = (l).channel;\
+  int cnt = (l)->channel;\
   INITIALIZE_CONST(param, cnt, 0.0);\
   param += set_bias(l, param);\
 } while (0)
@@ -250,375 +250,223 @@ do {\
 } while (0)
 
 typedef struct fc_layer_s {
-  cudnnHandle_t cudnn;
-
-  int batch_size, in, out;
-
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t d_input_desc;
-
-  cudnnTensorDescriptor_t output_desc;
-  cudnnTensorDescriptor_t d_output_desc;
+  int batch_size
+  int in, out;
 
   cudnnConvolutionDescriptor_t conv_desc;
-  cudnnFilterDescriptor_t filter_desc;
+
   cudnnConvolutionFwdAlgo_t fwd_algo;
-  cudnnFilterDescriptor_t d_filter_desc;
   cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
   cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
 
-  size_t conv_workspace_bytes;
-  size_t conv_workspace_bwd_data_bytes;
-  size_t conv_workspace_bwd_filter_bytes;
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
+  gpu_mem filter, d_filter;
 
-  float *filter;
-  float *d_filter;
-
-  float *input;
-  float *output;
-
-  float *d_input;
-  float *d_output;
+  gpu_mem ws_fwd, ws_bwd_data, ws_bwd_filter;
 
   float fwd_t, bwd_data_t, bwd_weight_t, bwd_update_t;
 } fc_layer;
 
 typedef struct conv_layer_s {
-  cudnnHandle_t cudnn;
-
-  bool is_training;
-
   int filter_height, filter_width;
   int pad_height, pad_width;
-  int stride_x, stride_y;
-  int channels_out, channels_in;
-  int output_height, output_width;
+  int stride_height, stride_width;
 
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t d_input_desc;
-
-  cudnnTensorDescriptor_t output_desc;
-  cudnnTensorDescriptor_t d_output_desc;
+  int batch_size;
+  int input_channel, input_height, input_width;
+  int output_channel, output_height, output_width;
 
   cudnnConvolutionDescriptor_t conv_desc;
-  cudnnFilterDescriptor_t filter_desc;
-  cudnnConvolutionFwdAlgo_t fwd_algo;
 
-  cudnnFilterDescriptor_t d_filter_desc;
+  cudnnConvolutionFwdAlgo_t fwd_algo;
   cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
   cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
 
-  float *input;
-  float *output;
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
+  gpu_mem filter, d_filter;
 
-  float *d_input;
-  float *d_output;
-
-  float *filter;
-  float *d_filter;
-
-  size_t conv_workspace_bytes;
-  size_t conv_workspace_bwd_data_bytes;
-  size_t conv_workspace_bwd_filter_bytes;
+  gpu_mem ws_fwd, ws_bwd_data, ws_bwd_filter;
 
   float fwd_t, bwd_data_t, bwd_filter_t, bwd_update_t;
 } conv_layer;
 
-typedef struct bn_layer_s { 
-  cudnnHandle_t cudnn;
+typedef struct bn_layer_s {
+  int batch_size;
+  int channel, height, width;
 
-  bool is_training;
+  cudnnBatchNormMode_t mode;
 
-  int channel;
-  int height, width;
-  double bn_eafactor;
-  double bn_epsilon;
+  double eaf, eps;
 
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t d_input_desc;
-
-  cudnnTensorDescriptor_t output_desc;
-  cudnnTensorDescriptor_t d_output_desc;
-
-  cudnnTensorDescriptor_t bn_desc;
-  cudnnTensorDescriptor_t d_bn_desc;
-
-  float *input;
-  float *d_input;
-
-  float *output;
-  float *d_output;
-
-  float *bn_scale;
-  float *bn_bias;
-  float *bn_result_running_mean;
-  float *bn_result_running_var;
-  float *bn_result_save_mean;
-  float *bn_result_save_var;
-
-  float *d_bn_scale;
-  float *d_bn_bias;
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
+  gpu_mem scale, d_scale;
+  gpu_mem bias, d_bias;
+  gpu_mem running_mean, running_var;
+  gpu_mem save_mean, save_var;
   
   float fwd_t, bwd_t, bwd_update_t;
 } bn_layer;
 
-typedef enum {
-  relu
-} ACT_TYPE;
+typedef enum { RELU_T } act_type;
 
 typedef struct act_layer_s {
-  cudnnHandle_t cudnn;
+  int batch_size;
+  int channel, height, width;
 
-  bool is_training;
-
-  ACT_TYPE type;
-
-  int channel;
-  int height, width;
-
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t d_input_desc;
-
-  cudnnTensorDescriptor_t output_desc; 
-  cudnnTensorDescriptor_t d_output_desc; 
+  act_type type;
 
   cudnnActivationDescriptor_t act_desc;
 
-  float *input;
-  float *d_input;
-
-  float *output;
-  float *d_output;
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
   
   float fwd_t, bwd_t;
 } act_layer;
 
-typedef enum {
-  addition
-} ELT_TYPE;
-
-#define MAX_IN 16
+#define MAX_IN 2
 typedef struct concat_layer_s {
-  cudnnHandle_t cudnn;
+  int batch_size;
+  int input_channel[MAX_IN];
+  int output_channel, height, width;
 
-  int in_cnt;
+  int fan_in;
 
-  int batch;
-  int channel_in[MAX_IN];
-  int channel;
-  int height, width;
-
-  cudnnTensorDescriptor_t input_desc[MAX_IN];
-  cudnnTensorDescriptor_t d_input_desc[MAX_IN];
-
-  cudnnTensorDescriptor_t output_desc; 
-  cudnnTensorDescriptor_t d_output_desc; 
-
-  float *input[MAX_IN];
-  float *d_input[MAX_IN];
-  float *output;
-  float *d_output;
+  gpu_mem input[MAX_IN], d_input[MAX_IN];
+  gpu_mem output, d_output;
   
   float fwd_t, bwd_t;
 } concat_layer;
 
+typedef enum { ADD_T } elt_type;
+
 typedef struct elt_layer_s {
-  cudnnHandle_t cudnn;
+  int batch_size;
+  int channel, height, width;
 
-  bool is_training;
-
-  ELT_TYPE type;
-
-  int batch;
-  int channel;
-  int height, width;
-
-  cudnnTensorDescriptor_t input1_desc;
-  cudnnTensorDescriptor_t input2_desc;
-
-  cudnnTensorDescriptor_t output_desc; 
-  cudnnTensorDescriptor_t d_output_desc; 
+  elt_type type;
 
   cudnnOpTensorDescriptor_t op_desc;
 
-  float *input1;
-  float *input2;
-  float *output;
-  float *d_output;
+  gpu_mem input[2];
+  gpu_mem output, d_output;
   
   float fwd_t, bwd_t;
 } elt_layer;
 
-#define MAX_OUT 16
+#define MAX_OUT 2
 typedef struct branch_layer_s {
-  cudnnHandle_t cudnn;
+  int batch_size;
+  int channel, height, width;
 
-  bool is_training;
-
-  int out_cnt;
-
-  int batch;
-  int channel;
-  int height, width;
-
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t d_input_desc;
-  cudnnTensorDescriptor_t d_output_desc; 
+  int fan_out;
 
   cudnnOpTensorDescriptor_t op_desc;
 
-  float *input;
-  float *d_input;
-  float *d_output[MAX_OUT];
+  gpu_mem input, d_input;
+  gpu_mem d_output[MAX_OUT];
   
   float fwd_t, bwd_t;
 } branch_layer;
 
 typedef struct bias_layer_s {
-  cudnnHandle_t cudnn;
+  int batch_size;
+  int channel, height, width;
 
-  bool is_training;
-
-  int channel;
-  int height, width;
-
-  cudnnTensorDescriptor_t output_desc; 
-  cudnnTensorDescriptor_t d_output_desc; 
-
-  cudnnTensorDescriptor_t bias_desc; 
-  cudnnTensorDescriptor_t d_bias_desc; 
-
-  float *output;
-  float *d_output;
-  
-  float *bias;
-  float *d_bias;
+  gpu_mem output, d_output;
+  gpu_mem bias, d_bias;
   
   float fwd_t, bwd_t, bwd_update_t;
 } bias_layer;
 
 typedef enum {
-  max, average
-} POOL_TYPE;
+  MAX_T, AVERAGE_T
+} pool_type;
 
 typedef struct pool_layer_s {
-  cudnnHandle_t cudnn;
-
-  POOL_TYPE type;
-
-  int channel;
-  int height, width;
   int filter_height, filter_width;
   int pad_height, pad_width;
-  int stride_x, stride_y;
-  int height_output, width_output;
+  int stride_height, stride_width;
 
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t d_input_desc;
+  int batch_size;
+  int channel;
+  int input_height, input_width;
+  int output_height, output_width;
 
-  cudnnTensorDescriptor_t output_desc;
-  cudnnTensorDescriptor_t d_output_desc;
+  pool_type type;
 
-  cudnnPoolingDescriptor_t pooling_desc;
+  cudnnPoolingDescriptor_t pool_desc;
 
-  float *input;
-  float *output;
-
-  float *d_input;
-  float *d_output;
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
 
   float fwd_t, bwd_t;
 } pool_layer;
 
 typedef struct input_layer_s {
-  cudnnHandle_t cudnn;
-  int channel;
-  int height, width;
+  int batch_size;
+  int channel, height, width;
 
-  cudnnTensorDescriptor_t output_desc;
-  cudnnTensorDescriptor_t d_output_desc;
-
-  float *output;
-  float *d_output;
+  gpu_mem output, d_output;
 } input_layer;
 
 typedef struct softmax_layer_s {
-  cudnnHandle_t cudnn;
- 
-  bool is_training;
-
   int batch_size;
   int out;
 
-  cudnnTensorDescriptor_t input_desc;
-  cudnnTensorDescriptor_t output_desc;
-  cudnnTensorDescriptor_t d_input_desc;
-
   cudnnOpTensorDescriptor_t op_desc;
 
-  float *input;
-  float *d_input;
-  float *output;
-  float *label;
-  int *label_in;
-  
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
+  gpu_mem label;
+
   float fwd_t, bwd_t;
 } softmax_layer;
 
 void init_input_layer(
-    input_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width);
+    input_layer *l, int batch_size, int channel, int height, int width);
 
 void init_elt_layer(
-    elt_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width, ELT_TYPE type);
+    elt_layer *l, int batch_size, int channel, int height, int width, elt_type type);
 
 void init_bias_layer(
-    bias_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width);
+    bias_layer *l, int batch_size, int channel, int height, int width);
 
 void init_conv_layer(
-    conv_layer *l, cudnnHandle_t cudnn,
-    int batch, int filter_height, int filter_width, int pad_height, int pad_width,
-    int stride_x, int stride_y, int in, int out, int height, int width);
+    conv_layer *l, int batch_size, int filter_height, int filter_width,
+    int pad_height, int pad_width, int stride_height, int stride_width,
+    int input_channel, int output_channel, int input_height, int input_width);
 
-void init_conv_workspace();
-
-void init_fc_layer(
-    fc_layer *l, cudnnHandle_t cudnn,
-    int batch_size, int in, int out);
+void init_fc_layer(fc_layer *l, int batch_size, int in, int out);
 
 void init_bn_layer(
-    bn_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width);
+    bn_layer *l, int batch_size, int channel, int height, int width, int nth);
 
 void init_act_layer(
-    act_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width);
+    act_layer *l, int batch_size, int channel, int height, int width, act_type type);
 
 void init_pool_layer(
-    pool_layer *l, cudnnHandle_t cudnn,
-    int batch, int filter_height, int filter_width, 
-    int pad_height, int pad_width,
-    int stride_x, int stride_y, int channel, int height, int width, POOL_TYPE type);
+    pool_layer *l, int batch_size, int filter_height, int filter_width, 
+    int pad_height, int pad_width, int stride_height, int stride_width,
+    int channel, int input_height, int input_width, pool_type type);
 
-void init_softmax_layer(
-    softmax_layer *fcl, cudnnHandle_t cudnn,
-    int batch, int out);
+void init_softmax_layer(softmax_layer *l, int batch_size, int out);
 
 void init_branch_layer(
-    branch_layer *l, cudnnHandle_t cudnn,
-    int batch, int out_cnt, int channel, int height, int width);
+    branch_layer *l, int batch_size, int fan_out,
+    int channel, int height, int width);
 
 void init_concat_layer(
-    concat_layer *l, cudnnHandle_t cudnn,
-    int batch, int in_cnt, int *channels_in, int height, int width);
+    concat_layer *l, int batch_size, int fan_in,
+    int input_channel[], int height, int width);
 
 void train_fwd_conv_layer(conv_layer *l);
 void train_fwd_fc_layer(fc_layer *l);
 void train_fwd_bn_layer(bn_layer *l);
-void train_fwd_act_layer(act_layer * l);
-void train_fwd_pool_layer(pool_layer * l);
+void train_fwd_act_layer(act_layer *l);
+void train_fwd_pool_layer(pool_layer *l);
 void train_fwd_elt_layer(elt_layer *l);
 void train_fwd_softmax_layer(softmax_layer *l);
 void train_fwd_branch_layer(branch_layer *l);
@@ -629,8 +477,8 @@ void train_bwd_conv_layer(conv_layer *l);
 void train_bwd_fc_layer(fc_layer *l);
 void train_bwd_bn_layer(bn_layer *l);
 void train_bwd_bn_res_layer(bn_layer *l);
-void train_bwd_act_layer(act_layer * l);
-void train_bwd_pool_layer(pool_layer * l);
+void train_bwd_act_layer(act_layer *l);
+void train_bwd_pool_layer(pool_layer *l);
 void train_bwd_elt_layer(elt_layer *l);
 void train_bwd_softmax_layer(softmax_layer *l);
 void train_bwd_branch_layer(branch_layer *l);
@@ -659,35 +507,20 @@ void clear_time_branch_layer(branch_layer *l);
 void clear_time_bias_layer(bias_layer *l);
 void clear_time_concat_layer(concat_layer *l);
 
-int set_conv_filter(conv_layer l, float *filter);
-int get_conv_filter(conv_layer l, float *filter);
-int set_fc_weight(fc_layer l, float *weight);
-int get_fc_weight(fc_layer l, float *weight);
-int get_bn_vars(bn_layer l, float *bn);
-int set_bn_vars(bn_layer l, float *bn);
+int get_conv_filter(conv_layer *l, float *filter);
+int set_conv_filter(conv_layer *l, float *filter);
+int get_fc_weight(fc_layer *l, float *weight);
+int set_fc_weight(fc_layer *l, float *weight);
+int get_bn_vars(bn_layer *l, float *bn);
+int set_bn_vars(bn_layer *l, float *bn);
 int get_bias(bias_layer l, float *bias);
 int set_bias(bias_layer l, float *bias);
 
 float get_loss(softmax_layer *l, int *label_in);
 
-static inline size_t PSIZE_CONV(conv_layer l)
-{
-  return sizeof(float) * l.filter_height * l.filter_width * l.channels_in * l.channels_out;
-}
-
-static inline size_t PSIZE_FC(fc_layer l)
-{
-  return sizeof(float) * l.in * l.out;
-}
-
 static inline size_t PSIZE_BN(bn_layer l)
 {
   return sizeof(float) * l.channel * 2;
-}
-
-static inline size_t PSIZE_BIAS(bias_layer l)
-{
-  return sizeof(float) * l.channel; 
 }
 
 #endif

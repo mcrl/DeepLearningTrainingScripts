@@ -10,86 +10,70 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_act_layer(
-    act_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width)
+    act_layer *l, int batch_size, int channel, int height, int width, act_type type)
 {
-  l->cudnn = cudnn;
-  l->width = width;
-  l->height = height;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->channel = channel;
-  l->type = relu;
+  l->height = height;
+  l->width = width;
+
+  l->type = type;
 
   l->input = NULL;
+  l->d_input = NULL;
+
+  l->output = NULL;
   l->d_output = NULL;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
+  clear_time_act_layer(l);
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
-
+  ////////////////////////////////////////////////////////////////
+  // 2. Set Activation Descriptor
+  ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreateActivationDescriptor(&l->act_desc));
 
-  switch (l->type) {
-    case relu:
-      chkCUDNN(cudnnSetActivationDescriptor(
-            l->act_desc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 20.0));
-      break;
+  // l->type == RELU_T
+  chkCUDNN(cudnnSetActivationDescriptor(
+        l->act_desc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 20.0));
 
-    default:
-      assert(0);
-      break;
-  }
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  MALLOC_TENSOR_FLOAT(&l->output, batch, channel, height, width);
-  MALLOC_TENSOR_FLOAT(&l->d_input, batch, channel, height, width);
+  create_buffer[DATA_GRADIENT](
+      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 }
 
 void train_fwd_act_layer(act_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  chkCUDNN(cudnnActivationForward(
-        l->cudnn, l->act_desc,
-        &one, l->input_desc, l->input,
-        &zero, l->output_desc, l->output));
-
+  execute_act_fwd(l->act_desc, l->input, l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_act_layer(act_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  chkCUDNN(cudnnActivationBackward(
-        l->cudnn, l->act_desc,
-        &one, l->output_desc, l->output,
-        l->d_output_desc, l->d_output, l->input_desc, l->input,
-        &zero, l->d_input_desc, l->d_input));
-
+  execute_act_bwd(l->act_desc, l->output, l->d_output, l->input, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 

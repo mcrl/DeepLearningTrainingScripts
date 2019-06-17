@@ -1,81 +1,82 @@
 #include <math.h>
+#include <time.h>
 
 #include <builtin_types.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
+#include "cnn.h"
+#include "cnn_cuda.h"
+#include "layer.h"
 #include "params.h"
 #include "utils.h"
-#include "layer.h"
+#include "memory.h"
+#include "execute.h"
 
-static float one = 1.0f;
-static float zero = 0.0f;
-
-void init_softmax_layer(
-    softmax_layer *l, cudnnHandle_t cudnn,
-    int batch, int out)
+void init_softmax_layer(softmax_layer *l, int batch_size, int out)
 {
-  l->cudnn = cudnn;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->out = out;
-  l->batch_size = batch;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
+  l->label = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
+  l->input = NULL;
+  l->d_input = NULL;
+
+  l->output = NULL;
+  l->d_output = NULL;
+
+  clear_time_softmax_layer(l);
+
+  ////////////////////////////////////////////////////////////////
+  // 2. Set OpTensor Descriptor
+  ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreateOpTensorDescriptor(&l->op_desc));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->out, 1, 1));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->out, 1, 1));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->out, 1, 1));
 
   chkCUDNN(cudnnSetOpTensorDescriptor(
         l->op_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
 
-  MALLOC_TENSOR_FLOAT(&l->output, batch, 1, 1, l->out);
-  MALLOC_TENSOR_FLOAT(&l->d_input, batch, 1, 1, l->out);
-  MALLOC_TENSOR_FLOAT(&l->label, batch, 1, 1, l->out);
-  MALLOC_TENSOR_INT(&l->label_in, batch, 1, 1, l->out);
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+
+  create_buffer[DATA_GRADIENT](
+      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+
+  create_buffer[DATA](
+      &l->label, 4, CUDNN_DATA_INT32, l->batch_size, l->out, 1, 1);
 }
 
 void train_fwd_softmax_layer(softmax_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  chkCUDNN(cudnnSoftmaxForward(
-        l->cudnn, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL,
-        &one, l->input_desc, l->input,
-        &zero, l->output_desc, l->output));
-
+  execute_softmax_fwd(
+      CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL, l->input, l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_softmax_layer(softmax_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  chkCUDNN(cudnnOpTensor(
-        l->cudnn, l->op_desc, 
-        &one, l->output_desc, l->output,
-        &one, l->output_desc, l->label,
-        &zero, l->d_input_desc, l->d_input));
-
+  execute_elt(l->op_desc, l->output, l->d_output, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 
 float get_loss(softmax_layer *l, int *label_in)
 {
+  /*
   float *result = (float *)malloc(sizeof(float) * l->out * l->batch_size);
   chkCUDA(cudaMemcpy(result, l->output, sizeof(float) * l->out * l->batch_size, cudaMemcpyDeviceToHost));
 
@@ -89,6 +90,8 @@ float get_loss(softmax_layer *l, int *label_in)
   }
 
   return (sum / l->batch_size);
+  */
+  return 0;
 }
 
 void print_time_softmax_layer(softmax_layer *l, char *name)

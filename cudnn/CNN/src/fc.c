@@ -10,169 +10,140 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-extern size_t workspace_bytes;
-extern float *workspace;
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_fc_layer(
-    fc_layer *l, cudnnHandle_t cudnn,
-    int batch_size, int in, int out)
+    fc_layer *l, int batch_size, int in, int out)
 {
-  size_t tmp;
+  size_t ws_fwd_size;
+  size_t ws_bwd_data_size;
+  size_t ws_bwd_filter_size;
 
-  l->cudnn = cudnn;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
   l->batch_size = batch_size;
   l->in = in;
   l->out = out;
 
   l->input = NULL;
+  l->d_input = NULL;
+
+  l->output = NULL;
   l->d_output = NULL;
 
-  l->fwd_t = 0;
-  l->bwd_data_t = 0;
-  l->bwd_weight_t = 0;
-  l->bwd_update_t = 0;
+  l->filter = NULL;
+  l->d_filter = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
+  l->ws_fwd = NULL;
+  l->ws_bwd_data = NULL;
+  l->ws_bwd_filter = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
+  clear_time_fc_layer(l);
 
-  chkCUDNN(cudnnCreateFilterDescriptor(&l->filter_desc));
-  chkCUDNN(cudnnCreateFilterDescriptor(&l->d_filter_desc));
-
+  ////////////////////////////////////////////////////////////////
+  // 2. Set Convolution Descriptor
+  ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreateConvolutionDescriptor(&l->conv_desc));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, in, 1, 1));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, in, 1, 1));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, out, 1, 1));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch_size, out, 1, 1));
-
-  chkCUDNN(cudnnSetFilter4dDescriptor(
-        l->filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW,
-        out, in, 1, 1));
-
-  chkCUDNN(cudnnSetFilter4dDescriptor(
-        l->d_filter_desc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW,
-        out, in, 1, 1));
 
   chkCUDNN(cudnnSetConvolution2dDescriptor(
         l->conv_desc, 0, 0, 1, 1, 1, 1,
         CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
 
-  chkCUDNN(cudnnGetConvolutionForwardAlgorithm(
-        l->cudnn, l->input_desc, l->filter_desc, l->conv_desc, l->output_desc,
-        CUDNN_CONVOLUTION_FWD_PREFER_FASTEST, 0, &l->fwd_algo));
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Tensors & Filters
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size, l->in, 1, 1);
 
-  chkCUDNN(cudnnGetConvolutionForwardWorkspaceSize(
-        l->cudnn, l->input_desc, l->filter_desc,
-        l->conv_desc, l->output_desc, l->fwd_algo, &tmp));
+  create_buffer[DATA_GRADIENT](
+      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size, l->in, 1, 1);
 
-  workspace_bytes = (workspace_bytes > tmp) ? workspace_bytes : tmp; 
-  l->conv_workspace_bytes = tmp;
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
 
-  chkCUDNN(cudnnGetConvolutionBackwardDataAlgorithm(
-        l->cudnn, l->filter_desc, l->d_output_desc, l->conv_desc, l->d_input_desc,
-    CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST, 0, &l->bwd_data_algo));
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
 
-  chkCUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
-        l->cudnn, l->filter_desc, l->d_output_desc,
-        l->conv_desc, l->d_input_desc, l->bwd_data_algo, &tmp));
+  create_buffer[WEIGHT](
+      &l->filter, 4, CUDNN_DATA_FLOAT, l->out, l->in, 1, 1);
 
-  workspace_bytes = (workspace_bytes > tmp) ? workspace_bytes : tmp; 
-  l->conv_workspace_bwd_data_bytes = tmp;
+  create_buffer[WEIGHT_GRADIENT](
+      &l->d_filter, 4, CUDNN_DATA_FLOAT, l->out, l->in, 1, 1);
 
-  chkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithm(
-        l->cudnn, l->input_desc, l->d_output_desc, l->conv_desc, l->d_filter_desc,
-        CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST, 0, &l->bwd_filter_algo));
+  ////////////////////////////////////////////////////////////////
+  // 4. Get Convolution Algorithm
+  ////////////////////////////////////////////////////////////////
+  execute_get_conv_fwd_algo(
+      l->conv_desc, l->input, l->filter, l->output, &l->fwd_aglo);
 
-#ifdef DET_CUDNN
-  l->bwd_filter_algo = CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1;
-#endif
+  execute_get_conv_bwd_data_algo(
+      l->conv_desc, l->filter, l->d_output, l->d_input, &l->bwd_data_algo);
 
-  chkCUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
-        l->cudnn, l->input_desc, l->d_output_desc,
-        l->conv_desc, l->d_filter_desc, l->bwd_filter_algo, &tmp));
+  execute_get_conv_bwd_filter_algo(
+      l->conv_desc, l->input, l->d_output, l->d_filter, &l->bwd_filter_algo);
 
-  workspace_bytes = (workspace_bytes > tmp) ? workspace_bytes : tmp; 
-  l->conv_workspace_bwd_filter_bytes = tmp;
+  ////////////////////////////////////////////////////////////////
+  // 5. Get Work Space Size in Bytes
+  ////////////////////////////////////////////////////////////////
+  execute_get_conv_fwd_ws_size(
+      l->conv_desc, l->fwd_algo,
+      l->input, l->filter, l->output, &ws_fwd_size);
 
-  MALLOC_TENSOR_FLOAT(&l->filter, out, in, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->d_filter, out, in, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->output, batch_size, out, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->d_input, batch_size, in, 1, 1);
+  execute_get_conv_bwd_data_ws_size(
+      l->conv_desc, l->bwd_data_algo,
+      l->filter, l->d_output, l->d_input, &ws_bwd_data_size);
+
+  execute_get_conv_bwd_filter_ws_size(
+      l->conv_desc, l->bwd_filter_algo,
+      l->input, l->d_output, l->d_filter, &ws_bwd_filter_size);
+
+  ////////////////////////////////////////////////////////////////
+  // 6. Create Work Spaces
+  ////////////////////////////////////////////////////////////////
+  create_buffer[WORK_SPACE](&l->ws_fwd, 1, ws_fwd_size);
+
+  create_buffer[WORK_SPACE](&l->ws_bwd_data, 1, ws_bwd_data_size);
+
+  create_buffer[WORK_SPACE](&l->ws_bwd_filter, 1, ws_bwd_filter_size);
 }
 
 void train_fwd_fc_layer(fc_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  chkCUDNN(cudnnConvolutionForward(
-        l->cudnn, &one, l->input_desc, l->input, l->filter_desc, l->filter,
-        l->conv_desc, l->fwd_algo, workspace, l->conv_workspace_bytes,
-        &zero, l->output_desc, l->output));
-
+  execute_conv_fwd(
+      l->conv_desc, l->fwd_algo, l->input, l->filter, l->output, l->ws_fwd);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_fc_layer(fc_layer *l)
 {
   START_CNN_TIMER(bwd_data_t);
-
-  chkCUDNN(cudnnConvolutionBackwardData(l->cudnn,
-    &one, l->filter_desc, l->filter,
-    l->d_output_desc, l->d_output, l->conv_desc,
-    l->bwd_data_algo,
-    workspace, l->conv_workspace_bwd_data_bytes,
-    &zero, l->d_input_desc, l->d_input));
-
+  execute_conv_bwd_data(
+      l->conv_desc, l->bwd_data_algo, l->filter, l->d_output, l->d_input, l->ws_bwd_data);
   STOP_CNN_TIMER(bwd_data_t);
 
   START_CNN_TIMER(bwd_weight_t);
-
-  chkCUDNN(cudnnConvolutionBackwardFilter(l->cudnn,
-    &one, l->input_desc, l->input,
-    l->d_output_desc, l->d_output, l->conv_desc,
-    l->bwd_filter_algo,
-    workspace, l->conv_workspace_bwd_filter_bytes,
-    &zero, l->d_filter_desc, l->d_filter));
-
+  execute_conv_bwd_filter(
+      l->conv_desc, l->bwd_filter_algo, l->input, l->d_output, l->d_filter, l->ws_bwd_filter);
   STOP_CNN_TIMER(bwd_weight_t);
 
   START_CNN_TIMER(bwd_update_t);
-
-  cublas_apply_grad(l->filter, l->d_filter, params.learning_rate,  l->out * l->in);
-
+  execute_apply_gradient(params.learning_rate, l->d_filter, l->filter);
   STOP_CNN_TIMER(bwd_update_t);
 }
 
-int set_fc_weight(fc_layer l, float *weight)
+int set_fc_weight(fc_layer *l, float *weight)
 {
-  size_t s = PSIZE_FC(l);
-  chkCUDA(cudaMemcpy(l.filter, weight, s, cudaMemcpyHostToDevice));
-  return s / sizeof(float);
+  write_buffer(l->filter, weight, true);
+  return l->in * l->out;
 }
 
-int get_fc_weight(fc_layer l, float *weight)
+int get_fc_weight(fc_layer *l, float *weight)
 {
-  size_t s = PSIZE_FC(l);
-  chkCUDA(cudaMemcpy(weight, l.filter, s, cudaMemcpyDeviceToHost));
-  return s / sizeof(float);
+  read_buffer(weight, l->filter, true);
+  return l->in * l->out;
 }
 
 void print_time_fc_layer(fc_layer *l, char *name)

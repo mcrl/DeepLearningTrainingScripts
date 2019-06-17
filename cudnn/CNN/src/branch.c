@@ -10,49 +10,57 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_branch_layer(
-    branch_layer *l, cudnnHandle_t cudnn,
-    int batch, int out_cnt, int channel, int height, int width)
+    branch_layer *l, int batch_size, int fan_out,
+    int channel, int height, int width)
 {
-  l->cudnn = cudnn;
-  l->width = width;
-  l->height = height;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->channel = channel;
+  l->height = height;
+  l->width = width;
   l->batch = batch;
-  l->fwd_t = l->bwd_t = 0;
-  l->out_cnt = out_cnt;
+
+  l->fan_out = fan_out;
 
   l->input = NULL;
+  l->d_input = NULL;
 
-  for (int i = 0; i < out_cnt; i++) {
+  for (int i = 0; i < l->fan_out; i++) {
     l->d_output[i] = NULL;
   }
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
+  clear_time_branch_layer(l);
+
+  ////////////////////////////////////////////////////////////////
+  // 2. Set OpTensor Descriptor
+  ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreateOpTensorDescriptor(&l->op_desc));
-
-  MALLOC_TENSOR_FLOAT(&l->d_input, batch, channel, height, width);
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
 
   chkCUDNN(cudnnSetOpTensorDescriptor(
         l->op_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
+
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
+
+  create_buffer[DATA_GRADIENT](
+      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
+
+  for (int i = 0; i < l->fan_out; i++) {
+    create_buffer[DATA_GRADIENT](
+        &l->d_output[i], 4, CUDNN_DATA_FLOAT, l->batch_size,
+        l->channel, l->height, l->width);
+  }
 }
 
 void train_fwd_branch_layer(branch_layer *l)
@@ -65,19 +73,7 @@ void train_fwd_branch_layer(branch_layer *l)
 void train_bwd_branch_layer(branch_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  chkCUDNN(cudnnOpTensor(
-        l->cudnn, l->op_desc, 
-        &one, l->d_output_desc, l->d_output[0],
-        &one, l->d_output_desc, l->d_output[1],
-        &zero, l->d_input_desc, l->d_input));
-
-  for (int i = 2; i < l->out_cnt; i++) {
-    chkCUDNN(cudnnAddTensor(
-          l->cudnn, &one, l->d_output_desc, l->d_output[i],
-          &one, l->d_input_desc, l->d_input));
-  }
-
+  execute_branch(l->op_desc, l->fan_out, l->d_output, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 

@@ -10,65 +10,63 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_elt_layer(
-    elt_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width, ELT_TYPE type)
+    elt_layer *l, int batch_size, int channel, int height, int width, elt_type type);
 {
-  l->cudnn = cudnn;
-  l->width = width;
-  l->height = height;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->channel = channel;
-  l->batch = batch;
+  l->height = height;
+  l->width = width;
 
-  l->input1 = NULL;
-  l->input2 = NULL;
+  l->type = type;
+
+  l->input[0] = NULL;
+  l->input[1] = NULL;
+
+  l->output = NULL;
   l->d_output = NULL;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
+  clear_time_elt_layer(l);
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input1_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input2_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
-
+  ////////////////////////////////////////////////////////////////
+  // 2. Set OpTensor Descriptor
+  ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreateOpTensorDescriptor(&l->op_desc));
 
-  MALLOC_TENSOR_FLOAT(&l->output, batch, channel, height, width);
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input1_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input2_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
+  // l->type == ADD_T
   chkCUDNN(cudnnSetOpTensorDescriptor(
         l->op_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
+
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input[0], 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
+
+  create_buffer[DATA](
+      &l->input[1], 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
+
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
+
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 }
 
 void train_fwd_elt_layer(elt_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  chkCUDNN(cudnnOpTensor(l->cudnn, l->op_desc, 
-    &one, l->input1_desc, l->input1,
-    &one, l->input2_desc, l->input2,
-    &zero, l->output_desc, l->output));
-
+  execute_elt(l->op_desc, l->input[0], l->input[1], l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 

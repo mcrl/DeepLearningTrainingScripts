@@ -10,29 +10,31 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
+#include "memory.h"
+#include "execute.h"
 
 void init_input_layer(
-    input_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width)
+    input_layer *l, int batch_size, int channel, int height, int width)
 {
-  l->cudnn = cudnn;
-  l->width = width;
-  l->height = height;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->channel = channel;
+  l->height = height;
+  l->width = width;
 
+  l->output = NULL;
   l->d_output = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
+  ////////////////////////////////////////////////////////////////
+  // 2. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
-
-  MALLOC_TENSOR_FLOAT(&l->output, batch, channel, height, width);
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 }
-

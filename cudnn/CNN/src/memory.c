@@ -17,12 +17,24 @@ ncclUniqueId nccl_id;
 static cudaStream_t memory_stream[MAX_NDEV];
 static ncclComm_t nccl_comm[MAX_NDEV];
 
-// FIXME: duplicated code
 static size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 
 static inline int distribute(int n, int dev)
 {
   return (n / num_devices) + (dev < n % num_devices);
+}
+
+size_t get_buffer_size(gpu_mem mem)
+{
+  if (mem->distributed) {
+    size_t total_size = 0;
+    for (int dev = 0; dev < num_devices; dev++) {
+      total_size += mem->size_in_bytes[dev];
+    }
+    return total_size;
+  }
+
+  return mem->size_in_bytes[0];
 }
 
 ////////////////////////////////////////////////////////////
@@ -61,10 +73,12 @@ int __finalize_object_manager()
   return 0;
 }
 
+static void assign_flags_from_object_type(gpu_mem mem);
+
 static int create_4d_tensor(
     gpu_mem mem, cudnnDataType_t data_type, int n, int c, int h, int w);
 
-/* int create_buffer[DATA](gpu_mem *, int, cudnnDataType, [int]) */
+/* int create_buffer[DATA](gpu_mem *, int, cudnnDataType_t, [int]) */
 int create_buffer_data(gpu_mem *mem, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
@@ -83,9 +97,8 @@ int create_buffer_data(gpu_mem *mem, int ndim, ...)
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA;
-  (*mem)->reserved = true;
-  (*mem)->distributed = true;
-  (*mem)->consistent = false;
+
+  assign_flags_from_object_type(*mem);
 
   switch (ndim) {
     case 4:
@@ -98,7 +111,7 @@ int create_buffer_data(gpu_mem *mem, int ndim, ...)
   }
 }
 
-/* int create_buffer[DATA_GRADIENT](gpu_mem *, int, cudnnDataType, [int]) */
+/* int create_buffer[DATA_GRADIENT](gpu_mem *, int, cudnnDataType_t, [int]) */
 int create_buffer_data_gradient(gpu_mem *mem, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
@@ -117,9 +130,8 @@ int create_buffer_data_gradient(gpu_mem *mem, int ndim, ...)
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA_GRADIENT;
-  (*mem)->reserved = false;
-  (*mem)->distributed = true;
-  (*mem)->consistent = false;
+
+  assign_flags_from_object_type(*mem);
 
   switch (ndim) {
     case 4:
@@ -135,7 +147,7 @@ int create_buffer_data_gradient(gpu_mem *mem, int ndim, ...)
 static int create_4d_weight(
     gpu_mem mem, cudnnDataType_t data_type, int k, int c, int h, int w);
 
-/* int create_buffer[WEIGHT](gpu_mem *, int, cudnnDataType, [int]) */
+/* int create_buffer[WEIGHT](gpu_mem *, int, cudnnDataType_t, [int]) */
 int create_buffer_weight(gpu_mem *mem, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
@@ -154,9 +166,8 @@ int create_buffer_weight(gpu_mem *mem, int ndim, ...)
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT;
-  (*mem)->reserved = true;
-  (*mem)->distributed = false;
-  (*mem)->consistent = true;
+
+  assign_flags_from_object_type(*mem);
 
   switch (ndim) {
     case 4:
@@ -169,7 +180,7 @@ int create_buffer_weight(gpu_mem *mem, int ndim, ...)
   }
 }
 
-/* int create_buffer[WEIGHT_GRADIENT](gpu_mem *, int, cudnnDataType, [int]) */
+/* int create_buffer[WEIGHT_GRADIENT](gpu_mem *, int, cudnnDataType_t, [int]) */
 int create_buffer_weight_gradient(gpu_mem *mem, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
@@ -188,9 +199,80 @@ int create_buffer_weight_gradient(gpu_mem *mem, int ndim, ...)
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT_GRADIENT;
-  (*mem)->reserved = false;
-  (*mem)->distributed = false;
-  (*mem)->consistent = false;
+
+  assign_flags_from_object_type(*mem);
+
+  switch (ndim) {
+    case 4:
+      return create_4d_weight(*mem, data_type, args[0], args[1], args[2], args[3]);
+
+    default:
+      free(*mem);
+      *mem = NULL;
+      return -1;
+  }
+}
+
+static void derive_bn_shape(cudnnBatchNormMode_t mode, int shape[], int ndim);
+
+/* int create_buffer[BN_PARAM](gpu_mem *, int, cudnnDataType_t, cudnnBatchNormMode_t, [int]) */
+int create_buffer_bn_param(gpu_mem *mem, int ndim, ...)
+{
+  int args[CUDNN_DIM_MAX];
+  va_list ap;
+
+  va_start(ap, ndim);
+  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
+  cudnnBatchNormMode_t mode = (cudnnBatchNormMode_t)va_arg(ap, int);
+  for (int i = 0; i < ndim; i++) {
+    args[i] = va_arg(ap, int);
+  }
+  derive_bn_shape(mode, args, ndim);
+  va_end(ap);
+
+  if (mem == NULL || *mem != NULL) return -1;
+  *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
+  if (*mem == NULL) return -1;
+
+  (*mem)->data_type = data_type;
+  (*mem)->obj_type = BN_PARAM;
+
+  assign_flags_from_object_type(*mem);
+
+  switch (ndim) {
+    case 4:
+      return create_4d_weight(*mem, data_type, args[0], args[1], args[2], args[3]);
+
+    default:
+      free(*mem);
+      *mem = NULL;
+      return -1;
+  }
+}
+
+/* int create_buffer[BN_PARAM_GRADIENT](gpu_mem *, int, cudnnDataType_t, cudnnBatchNormMode_t, [int]) */
+int create_buffer_bn_param_gradient(gpu_mem *mem, int ndim, ...)
+{
+  int args[CUDNN_DIM_MAX];
+  va_list ap;
+
+  va_start(ap, ndim);
+  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
+  cudnnBatchNormMode_t mode = (cudnnBatchNormMode_t)va_arg(ap, int);
+  for (int i = 0; i < ndim; i++) {
+    args[i] = va_arg(ap, int);
+  }
+  derive_bn_shape(mode, args, ndim);
+  va_end(ap);
+
+  if (mem == NULL || *mem != NULL) return -1;
+  *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
+  if (*mem == NULL) return -1;
+
+  (*mem)->data_type = data_type;
+  (*mem)->obj_type = BN_PARAM_GRADIENT;
+
+  assign_flags_from_object_type(*mem);
 
   switch (ndim) {
     case 4:
@@ -220,9 +302,8 @@ int create_buffer_work_space(gpu_mem *mem, int ndim, ...)
 
   (*mem)->data_type = 0;
   (*mem)->obj_type = WORK_SPACE;
-  (*mem)->reserved = false;
-  (*mem)->distributed = false;
-  (*mem)->consistent = false;
+
+  assign_flags_from_object_type(*mem);
 
   return create_rawspace(*mem, size_in_bytes);
 }
@@ -242,9 +323,8 @@ int create_buffer_reserve_space(gpu_mem *mem, int ndim, ...)
 
   (*mem)->data_type = 0;
   (*mem)->obj_type = RESERVE_SPACE;
-  (*mem)->reserved = true;
-  (*mem)->distributed = false;
-  (*mem)->consistent = false;
+
+  assign_flags_from_object_type(*mem);
 
   return create_rawspace(*mem, size_in_bytes);
 }
@@ -294,12 +374,9 @@ int create_4d_tensor(
           data_type, n_dev, c, h, w));
 
     mem->size_in_bytes[dev] = size_of_cudnn_data_type[data_type] * n_dev * c * h * w;
-#if ON_DEMAND_ALLOCATION
     mem->dev_ptr[dev] = NULL;
-#else
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
-#endif
+    //chkCUDA(cudaSetDevice(dev));
+    //chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
 
   return 0;
@@ -330,12 +407,9 @@ int create_4d_weight(
           data_type, k, c, h, w));
 
     mem->size_in_bytes[dev] = size_in_bytes;
-#if ON_DEMAND_ALLOCATION
     mem->dev_ptr[dev] = NULL;
-#else
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
-#endif
+    //chkCUDA(cudaSetDevice(dev));
+    //chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
 
   return 0;
@@ -352,15 +426,79 @@ int create_rawspace(gpu_mem mem, size_t size_in_bytes)
     mem->tensor_desc[dev] = NULL;
 
     mem->size_in_bytes[dev] = size_in_bytes;
-#if ON_DEMAND_ALLOCATION
     mem->dev_ptr[dev] = NULL;
-#else
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
-#endif
+    //chkCUDA(cudaSetDevice(dev));
+    //chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
 
   return 0;
+}
+
+void derive_bn_shape(cudnnBatchNormMode_t mode, int shape[], int ndim)
+{
+  if (mode != CUDNN_BATCHNORM_PER_ACTIVATION) {
+    for (int i = 0; i < ndim; i++) {
+      if (i == 1) continue;
+
+      shape[i] = 1;
+    }
+  }
+  else {
+    shape[0] = 1;
+  }
+}
+
+void assign_flags_from_object_type(gpu_mem mem)
+{
+  switch (mem->obj_type) {
+    case DATA:
+      mem->reserved = true;
+      mem->distributed = true;
+      mem->consistent = false;
+      break;
+
+    case DATA_GRADIENT:
+      mem->reserved = false;
+      mem->distributed = true;
+      mem->consistent = false;
+      break;
+
+    case WEIGHT:
+      mem->reserved = true;
+      mem->distributed = false;
+      mem->consistent = true;
+      break;
+
+    case WEIGHT_GRADIENT:
+      mem->reserved = false;
+      mem->distributed = false;
+      mem->consistent = false;
+      break;
+
+    case BN_PARAM:
+      mem->reserved = true;
+      mem->distributed = false;
+      mem->consistent = false;
+      break;
+
+    case BN_PARAM_GRADIENT:
+      mem->reserved = false;
+      mem->distributed = false;
+      mem->consistent = false;
+      break;
+
+    case WORK_SPACE:
+      mem->reserved = false;
+      mem->distributed = false;
+      mem->consistent = false;
+      break;
+
+    case RESERVE_SPACE:
+      mem->reserved = true;
+      mem->distributed = false;
+      mem->consistent = false;
+      break;
+  }
 }
 
 ////////////////////////////////////////////////////////////
@@ -522,8 +660,6 @@ int all_reduce_buffer(const gpu_mem mem, bool synch)
     }
     // MPI_Barrier()
   }
-
-  mem->consistent = true;
 
   return 0;
 }

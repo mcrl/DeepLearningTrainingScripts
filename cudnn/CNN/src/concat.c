@@ -10,79 +10,69 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_concat_layer(
-    concat_layer *l, cudnnHandle_t cudnn,
-    int batch, int in_cnt, int* channel_in, int height, int width)
+    concat_layer *l, int batch_size, int fan_in,
+    int input_channel[], int height, int width)
 {
-  l->cudnn = cudnn;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
+  l->output_channel = 0;
   l->width = width;
   l->height = height;
-  l->batch = batch;
-  l->in_cnt = in_cnt;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
+  l->fan_in = fan_in;
 
-  int c = 0;
-  for (int i = 0; i < in_cnt; i++) {
-    l->channel_in[i] = channel_in[i];
-    c += channel_in[i];
+  for (int i = 0; i < l->fan_in; i++) {
+    l->input_channel[i] = input_channel[i];
+    l->output_channel += input_channel[i];
 
     l->input[i] = NULL;
-
-    chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc[i]));
-    chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc[i]));
-
-    MALLOC_TENSOR_FLOAT(&l->d_input[i], batch, l->channel_in[i], height, width);
-
-    chkCUDNN(cudnnSetTensor4dDescriptor(
-          l->input_desc[i], CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-          batch, channel_in[i], height, width));
-    chkCUDNN(cudnnSetTensor4dDescriptor(
-          l->d_input_desc[i], CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-          batch, channel_in[i], height, width));
+    l->d_input[i] = NULL;
   }
 
-  l->channel = c;
+  l->output = NULL;
+  l->d_output = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
+  clear_time_concat_layer(l);
 
-  MALLOC_TENSOR_FLOAT(&l->output, batch, l->channel, height, width);
-  MALLOC_TENSOR_FLOAT(&l->d_output, batch, l->channel, height, width);
+  ////////////////////////////////////////////////////////////////
+  // 2. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  for (int i = 0; i < l->fan_in; i++) {
+    create_buffer[DATA](
+        &l->input[i], 4, CUDNN_DATA_FLOAT, l->batch_size,
+        l->input_channel[i], l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
+    create_buffer[DATA_GRADIENT](
+        &l->d_input[i], 4, CUDNN_DATA_FLOAT, l->batch_size,
+        l->input_channel[i], l->height, l->width);
+  }
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, l->channel, height, width));
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->output_channel, l->height, l->width);
+
+  create_buffer[DATA_GRADIENT](
+      &l->doutput, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->output_channel, l->height, l->width);
 }
 
 void train_fwd_concat_layer(concat_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  cuda_concat(
-      l->batch, l->in_cnt, l->channel_in,
-      l->height, l->width, 1, l->input, l->output);
-
+  execute_concat_fwd(l->fan_in, l->input, l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_concat_layer(concat_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  cuda_concat(
-      l->batch, l->in_cnt, l->channel_in,
-      l->height, l->width, 1, l->d_input, l->d_output);
-
+  execute_concat_bwd(l->fan_in, l->d_output, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 

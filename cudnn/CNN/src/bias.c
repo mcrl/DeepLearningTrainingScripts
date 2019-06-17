@@ -10,91 +10,74 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_bias_layer(
-    bias_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width)
+    bias_layer *l, int batch_size, int channel, int height, int width)
 {
-  l->cudnn = cudnn;
-  l->width = width;
-  l->height = height;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->channel = channel;
+  l->height = height;
+  l->width = width;
 
-  l->output_desc = NULL;
-  l->d_output_desc = NULL;
+  l->output = NULL;
+  l->d_output = NULL;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
-  l->bwd_update_t = 0;
+  l->bias = NULL;
+  l->d_bias = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->bias_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_bias_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
+  clear_time_bias_layer(l);
 
-  MALLOC_TENSOR_FLOAT(&l->bias, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->d_bias, 1, channel, 1, 1);
+  ////////////////////////////////////////////////////////////////
+  // 2. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[WEIGHT](
+      &l->bias, 4, CUDNN_DATA_FLOAT, 1, l->channel, 1, 1);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->bias_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        1, channel, 1, 1));
-
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_bias_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        1, channel, 1, 1));
+  create_buffer[WEIGHT_GRADIENT](
+      &l->d_bias, 4, CUDNN_DATA_FLOAT, 1, l->channel, 1, 1);
 }
 
 void train_fwd_bias_layer(bias_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  chkCUDNN(cudnnAddTensor(
-        l->cudnn, &one, l->bias_desc, l->bias,
-        &one, l->output_desc, l->output));
-
+  execute_bias_fwd(l->bias, l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_bias_layer(bias_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  chkCUDNN(cudnnConvolutionBackwardBias(
-        l->cudnn, &one, l->d_output_desc, l->d_output,
-        &one, l->d_bias_desc, l->d_bias));
-
+  execute_bias_bwd(l->d_output, l->d_bias);
   STOP_CNN_TIMER(bwd_t);
 
   START_CNN_TIMER(bwd_update_t);
-
-  cublas_apply_grad(l->bias, l->d_bias, params.learning_rate,  l->channel);
-
+  execute_apply_gradient(params.learning_rate, l->d_bias, l->bias);
   STOP_CNN_TIMER(bwd_update_t);
 }
 
-int set_bias(bias_layer l, float *bias)
+int set_bias(bias_layer *l, float *bias)
 {
-  size_t s = PSIZE_BIAS(l);
-  chkCUDA(cudaMemcpy(l.bias, bias, s, cudaMemcpyHostToDevice));
-  return s / sizeof(float);
+  write_buffer(l->bias, bias, true);
+  return l->channel;
 }
 
 int get_bias(bias_layer l, float *bias)
 {
-  size_t s = PSIZE_BIAS(l);
-  chkCUDA(cudaMemcpy(bias, l.bias, s, cudaMemcpyDeviceToHost));
-  return s / sizeof(float);
+  read_buffer(bias, l->bias, true);
+  return l->channel;
 }
 
 void print_time_bias_layer(bias_layer *l, char *name)

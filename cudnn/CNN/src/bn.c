@@ -10,143 +10,134 @@
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
+#include "memory.h"
+#include "execute.h"
 
 void init_bn_layer(
-    bn_layer *l, cudnnHandle_t cudnn,
-    int batch, int channel, int height, int width)
+    bn_layer *l, int batch_size, int channel, int height, int width, int nth)
 {
-  l->cudnn = cudnn;
+  ////////////////////////////////////////////////////////////////
+  // 1. Initialize Parameters
+  ////////////////////////////////////////////////////////////////
+  l->batch_size = batch_size;
   l->channel = channel;
-  l->bn_eafactor = 0.1;
-  l->bn_epsilon = 1e-05;
+  l->height = height;
+  l->width = width;
 
-  l->is_training = true;
+  l->mode = CUDNN_BATCHNORM_SPATIAL;
+
+  l->eaf = 1.0 / (1.0 + nth);
+  l->eps = CUDNN_BN_MIN_EPSILON;
 
   l->input = NULL;
+  l->d_input = NULL;
+
+  l->output = NULL;
   l->d_output = NULL;
 
-  l->fwd_t = 0;
-  l->bwd_t = 0;
-  l->bwd_update_t = 0;
+  l->bias = NULL;
+  l->d_bias = NULL;
 
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_input_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_output_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->bn_desc));
-  chkCUDNN(cudnnCreateTensorDescriptor(&l->d_bn_desc));
+  l->scale = NULL;
+  l->d_scale = NULL;
 
-  MALLOC_TENSOR_FLOAT(&l->bn_scale, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->bn_bias, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->d_bn_scale, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->d_bn_bias, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->bn_result_running_mean, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->bn_result_running_var, 1, channel, 1, 1);
+  l->running_mean = NULL;
+  l->running_var = NULL;
 
-  float *tmp = (float *)malloc(sizeof(float) * channel);
+  l->save_mean = NULL;
+  l->save_var = NULL;
 
-  for (int i = 0; i < channel; i++) {
-    tmp[i] = 1.0f;
-  }
+  clear_time_bn_layer(l);
 
-  chkCUDA(cudaMemcpy(
-        l->bn_result_running_var, tmp, sizeof(float) * channel, cudaMemcpyHostToDevice)); 
-  free(tmp);
+  ////////////////////////////////////////////////////////////////
+  // 2. Create Tensors
+  ////////////////////////////////////////////////////////////////
+  create_buffer[DATA](
+      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  MALLOC_TENSOR_FLOAT(&l->bn_result_save_mean, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->bn_result_save_var, 1, channel, 1, 1);
-  MALLOC_TENSOR_FLOAT(&l->output, batch, channel, height, width);
-  MALLOC_TENSOR_FLOAT(&l->d_input, batch, channel, height, width);
+  create_buffer[DATA](
+      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[DATA](
+      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_input_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[DATA_GRADIENT](
+      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
+      l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[BN_PARAM](
+      &l->scale, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnSetTensor4dDescriptor(
-        l->d_output_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-        batch, channel, height, width));
+  create_buffer[BN_PARAM_GRADIENT](
+      &l->d_scale, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnDeriveBNTensorDescriptor(
-        l->bn_desc, l->output_desc, CUDNN_BATCHNORM_SPATIAL));
+  create_buffer[BN_PARAM](
+      &l->bias, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
 
-  chkCUDNN(cudnnDeriveBNTensorDescriptor(
-        l->d_bn_desc, l->d_output_desc, CUDNN_BATCHNORM_SPATIAL));
+  create_buffer[BN_PARAM_GRADIENT](
+      &l->d_bias, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer[BN_PARAM](
+      &l->running_mean, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer[BN_PARAM](
+      &l->running_var, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer[BN_PARAM](
+      &l->save_mean, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer[BN_PARAM](
+      &l->save_var, 4, CUDNN_DATA_FLOAT, l->mode,
+      l->batch_size, l->channel, l->height, l->width);
 }
 
 void train_fwd_bn_layer(bn_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-
-  if (l->is_training) {
-    chkCUDNN(cudnnBatchNormalizationForwardTraining(
-          l->cudnn, CUDNN_BATCHNORM_SPATIAL, &one, &zero,
-          l->input_desc, l->input,
-          l->output_desc, l->output, l->bn_desc,
-          l->bn_scale, l->bn_bias, l->bn_eafactor,
-          l->bn_result_running_mean, l->bn_result_running_var,
-          l->bn_epsilon, l->bn_result_save_mean, l->bn_result_save_var));
-  }
-  else {
-    chkCUDNN(cudnnBatchNormalizationForwardInference(
-          l->cudnn, CUDNN_BATCHNORM_SPATIAL, &one, &zero,
-          l->input_desc, l->input,
-          l->output_desc, l->output, l->bn_desc,
-          l->bn_scale, l->bn_bias,
-          l->bn_result_running_mean, l->bn_result_running_var,
-          l->bn_epsilon));
-  }
-
+  execute_bn_fwd(
+      l->mode, l->eaf, l->eps, l->input, l->output, l->scale, l->bias,
+      l->running_mean, l->running_var, l->save_mean, l->save_var);
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_bn_layer(bn_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-
-  chkCUDNN(cudnnBatchNormalizationBackward(
-        l->cudnn, CUDNN_BATCHNORM_SPATIAL, &one, &zero, &one, &zero,
-        l->input_desc, l->input,
-        l->d_output_desc, l->d_output,
-        l->d_input_desc, l->d_input,
-        l->d_bn_desc, l->bn_scale, l->d_bn_scale, l->d_bn_bias,
-        l->bn_epsilon, l->bn_result_save_mean, l->bn_result_save_var));
-
+  execute_bn_bwd(
+      l->mode, l->eaf, l->eps, l->input, l->d_output, l->d_input,
+      l->scale, l->d_scale, l->d_bias, l->save_mean, l->save_var);
   STOP_CNN_TIMER(bwd_t);
 
   START_CNN_TIMER(bwd_update_t);
-
-  cublas_apply_grad(l->bn_scale, l->d_bn_scale, 0,  l->channel);
-  cublas_apply_grad(l->bn_bias, l->d_bn_bias, 0,  l->channel);
-
+  execute_apply_gradient(params.learning_rate, l->d_scale, l->scale);
+  execute_apply_gradient(params.learning_rate, l->d_bias, l->bias);
   STOP_CNN_TIMER(bwd_update_t);
 }
 
-int set_bn_vars(bn_layer l, float *bn)
+// assume CUDNN_BATCHNORM_SPATIAL
+int set_bn_vars(bn_layer *l, float *bn)
 {
-  size_t s = PSIZE_BN(l) / 2;
-  chkCUDA(cudaMemcpy(l.bn_scale, bn, s, cudaMemcpyHostToDevice));
-  chkCUDA(cudaMemcpy(l.bn_bias, bn + l.channel, s, cudaMemcpyHostToDevice));
-  return s * 2 / sizeof(float);
+  write_buffer(l->scale, bn, true);
+  write_buffer(l->bias, bn + l->channel, true);
+  return l->channel * 2;
 }
 
-int get_bn_vars(bn_layer l, float *bn)
+// assume CUDNN_BATCHNORM_SPATIAL
+int get_bn_vars(bn_layer *l, float *bn)
 {
-  size_t s = PSIZE_BN(l) / 6;
-  chkCUDA(cudaMemcpy(bn, l.bn_scale, s, cudaMemcpyDeviceToHost));
-  chkCUDA(cudaMemcpy(bn + l.channel, l.bn_bias, s, cudaMemcpyDeviceToHost));
-  return s * 2 / sizeof(float);
+  read_buffer(bn, l->scale, true);
+  read_buffer(bn + l->channel, l->bias, true);
+  return l->channel * 2;
 }
 
 void print_time_bn_layer(bn_layer *l, char *name)
