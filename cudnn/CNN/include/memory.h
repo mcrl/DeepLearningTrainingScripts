@@ -8,6 +8,8 @@
 #include <cuda.h>
 #include <cudnn.h>
 
+#include "list.h"
+
 #define MAX_NDEV 4
 
 ////////////////////////////////////////////////////////////
@@ -23,9 +25,12 @@ typedef enum {
   BN_PARAM_GRADIENT,  // reusable unique output
   WORK_SPACE,         // reusable private output
   RESERVE_SPACE,      // reusable private input/output
+  NUM_OBJECT_TYPE
 } gpu_memory_object_t;
 
 struct _gpu_memory_object {
+  iterator_t iterator;
+
   void *dev_ptr[MAX_NDEV];
   size_t size_in_bytes[MAX_NDEV];
 
@@ -94,11 +99,13 @@ const create_buffer_t create_buffer[] = {
 
 int destroy_buffer(gpu_mem mem);
 
-////////////////////////////////////////////////////////////
-// Device Memory Allocation API
-////////////////////////////////////////////////////////////
+int alloc_buffer(gpu_mem mem);
 
+int share_buffer(gpu_mem dst, gpu_mem src);
 
+int alloc_work_space(void);
+
+int alloc_reserve_space(void);
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API

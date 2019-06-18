@@ -7,6 +7,7 @@
 
 #include "memory.h"
 #include "utils.h"
+#include "list.h"
 
 //extern int node_id;
 //extern int num_nodes;
@@ -16,6 +17,7 @@ ncclUniqueId nccl_id;
 
 static cudaStream_t memory_stream[MAX_NDEV];
 static ncclComm_t nccl_comm[MAX_NDEV];
+static list_t memory_list[NUM_OBJECT_TYPE];
 
 static size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 
@@ -33,6 +35,10 @@ int __init_object_manager()
   static bool initialized = false;
 
   if (initialized) return -1;
+
+  for (int type = 0; type < NUM_OBJECT_TYPE; type++) {
+    list_init(&memory_list[type]);
+  }
 
   ncclGroupStart();
 
@@ -348,6 +354,8 @@ int destroy_buffer(gpu_mem mem)
     }
   }
 
+  list_erase(&memory_list[mem->obj_type], &mem->iterator);
+
   free(mem);
 
   return 0;
@@ -376,6 +384,8 @@ int create_4d_tensor(
     mem->size_in_bytes[dev] = size_of_cudnn_data_type[data_type] * n_dev * c * h * w;
     mem->dev_ptr[dev] = NULL;
   }
+
+  list_push_back(&memory_list[mem->obj_type], &mem->iterator);
 
   return 0;
 }
@@ -406,9 +416,9 @@ int create_4d_weight(
 
     mem->size_in_bytes[dev] = size_in_bytes;
     mem->dev_ptr[dev] = NULL;
-    //chkCUDA(cudaSetDevice(dev));
-    //chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
+
+  list_push_back(&memory_list[mem->obj_type], &mem->iterator);
 
   return 0;
 }
@@ -422,27 +432,23 @@ int create_rawspace(gpu_mem mem, size_t size_in_bytes)
 
   for (int dev = 0; dev < num_devices; dev++) {
     mem->tensor_desc[dev] = NULL;
-
     mem->size_in_bytes[dev] = size_in_bytes;
     mem->dev_ptr[dev] = NULL;
-    //chkCUDA(cudaSetDevice(dev));
-    //chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
+
+  list_push_back(&memory_list[mem->obj_type], &mem->iterator);
 
   return 0;
 }
 
 void derive_bn_shape(cudnnBatchNormMode_t mode, int shape[], int ndim)
 {
-  if (mode != CUDNN_BATCHNORM_PER_ACTIVATION) {
-    for (int i = 0; i < ndim; i++) {
-      if (i == 1) continue;
+  shape[0] = 1;
 
+  if (mode != CUDNN_BATCHNORM_PER_ACTIVATION) {
+    for (int i = 2; i < ndim; i++) {
       shape[i] = 1;
     }
-  }
-  else {
-    shape[0] = 1;
   }
 }
 
@@ -499,11 +505,80 @@ void assign_flags_from_object_type(gpu_mem mem)
   }
 }
 
-////////////////////////////////////////////////////////////
-// Device Memory Allocation API
-////////////////////////////////////////////////////////////
+int alloc_buffer(gpu_mem mem)
+{
+  for (int dev = 0; dev < num_devices; dev++) {
+    if (mem->dev_ptr[dev]) return -1;
+  }
 
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
+  }
 
+  return 0;
+}
+
+int share_buffer(gpu_mem dst, gpu_mem src)
+{
+  for (int dev = 0; dev < num_devices; dev++) {
+    if (dst->dev_ptr[dev] || !src->dev_ptr[dev]) return -1;
+  }
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    dst->dev_ptr[dev] = src->dev_ptr[dev];
+  }
+
+  return 0;
+}
+
+int alloc_work_space()
+{
+  list_t *l = &memory_list[WORK_SPACE];
+
+  size_t max_size_in_bytes = 0;
+
+  list_iter(l, it) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, it);
+
+    if (max_size_in_bytes < mem->size_in_bytes[0]) {
+      max_size_in_bytes = mem->size_in_bytes[0];
+    }
+  }
+
+  void *dev_ptr[MAX_NDEV];
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaMalloc(&dev_ptr[dev], max_size_in_bytes));
+  }
+
+  list_iter(l, it) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, it);
+
+    for (int dev = 0; dev < num_devices; dev++) {
+      mem->dev_ptr[dev] = dev_ptr[dev];
+    }
+  }
+
+  return 0;
+}
+
+int alloc_reserve_space()
+{
+  list_t *l = &memory_list[WORK_SPACE];
+
+  list_iter(l, it) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, it);
+
+    for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+      chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
+    }
+  }
+
+  return 0;
+}
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API
