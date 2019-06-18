@@ -37,8 +37,8 @@ void init_conv_layer(
   l->input_height = input_height;
   l->input_width = input_width;
   l->output_channel = output_channel;
-  l->output_height = CALC_SIZE(input_height, filter_height, pad_height, stride_height);
-  l->output_width = CALC_SIZE(input_width, filter_width, pad_width, stride_width);
+  l->output_height = (input_height + pad_height * 2 - filter_height) / stride_height + 1;
+  l->output_width = (input_width + pad_width * 2 - filter_width) / stride_width + 1;
 
   l->input = NULL;
   l->d_input = NULL;

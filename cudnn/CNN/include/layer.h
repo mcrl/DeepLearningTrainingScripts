@@ -9,14 +9,11 @@
 #define DET_CUDNN
 //#define TIME_LAYER
 //#define PRINT_LOSS
-//#define USE_CUBLAS_FC
 //#define USE_DROPOUT
 //#define CHK_OUTPUT
 
 #define CONNECT(l1, l2) \
 do {\
-  assert(TENSOR_SIZE((l2).input_desc) == (TENSOR_SIZE((l1).output_desc)));\
-  assert(TENSOR_SIZE((l1).d_output_desc) == (TENSOR_SIZE((l2).d_input_desc)));\
   (l2).input = (l1).output;\
   (l1).d_output = (l2).d_input;\
 } while (0)
@@ -24,10 +21,6 @@ do {\
 //VGG CONNECTION
 #define CONNECT_DIRECT(l1, l2, l3) \
 do {\
-  assert(TENSOR_SIZE((l3).input_desc) == (TENSOR_SIZE((l1).output_desc)));\
-  assert(TENSOR_SIZE((l3).input_desc) == (TENSOR_SIZE((l2).output_desc)));\
-  assert(TENSOR_SIZE((l1).d_output_desc) == (TENSOR_SIZE((l3).d_input_desc)));\
-  assert(TENSOR_SIZE((l2).d_output_desc) == (TENSOR_SIZE((l3).d_input_desc)));\
   (l3).input = (l2).output = (l1).output;\
   (l1).d_output = (l2).d_output = (l3).d_input;\
 } while (0)
@@ -36,12 +29,6 @@ do {\
 //l_elt.d_output must be set first!!
 #define CONNECT_DIAMOND_RES(l_branch, l_elt, l_up, l_down) \
 do {\
-  assert(TENSOR_SIZE((l_elt).input1_desc) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_elt).input2_desc) == (TENSOR_SIZE((l_down).output_desc)));\
-  assert(TENSOR_SIZE((l_up).input_desc) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_elt).d_output_desc)));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_up).d_input_desc)));\
-  assert(TENSOR_SIZE((l_down).d_output_desc) == (TENSOR_SIZE((l_elt).d_output_desc)));\
   (l_elt).input1 = (l_branch).input;\
   (l_elt).input2 = (l_down).output;\
   (l_up).input = (l_branch).input;\
@@ -52,10 +39,6 @@ do {\
 
 #define CONNECT_BRANCH_RES(l_branch, l_down1, l_down2) \
 do {\
-  assert(TENSOR_SIZE((l_down1).input_desc) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_down2).input_desc) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_down1).d_input_desc)));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_down2).d_input_desc)));\
   (l_down1).input = (l_branch).input;\
   (l_down2).input = (l_branch).input;\
   (l_branch).d_output[0] = (l_down1).d_input;\
@@ -65,10 +48,6 @@ do {\
 //l_elt.d_output must be set first!!
 #define CONNECT_ELT(l_up1, l_up2, l_elt) \
 do {\
-  assert(TENSOR_SIZE((l_elt).input1_desc) == (TENSOR_SIZE((l_up1).output_desc)));\
-  assert(TENSOR_SIZE((l_elt).input2_desc) == (TENSOR_SIZE((l_up2).output_desc)));\
-  assert(TENSOR_SIZE((l_up1).d_output_desc) == (TENSOR_SIZE((l_elt).d_output_desc)));\
-  assert(TENSOR_SIZE((l_up2).d_output_desc) == (TENSOR_SIZE((l_elt).d_output_desc)));\
   (l_elt).input1 = (l_up1).output;\
   (l_elt).input2 = (l_up2).output;\
   (l_up1).d_output = (l_elt).d_output;\
@@ -78,12 +57,6 @@ do {\
 //DENSENET CONNECTION
 #define CONNECT_DIAMOND_DENSE(l_branch, l_concat, l_up, l_down) \
 do {\
-  assert(TENSOR_SIZE((l_concat).input_desc[0]) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_concat).input_desc[1]) == (TENSOR_SIZE((l_down).output_desc)));\
-  assert(TENSOR_SIZE((l_up).input_desc) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_concat).d_input_desc[0])));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_up).d_input_desc)));\
-  assert(TENSOR_SIZE((l_down).d_output_desc) == (TENSOR_SIZE((l_concat).d_input_desc[1])));\
   (l_concat).input[0] = (l_branch).input;\
   (l_concat).input[1] = (l_down).output;\
   (l_up).input = (l_branch).input;\
@@ -95,16 +68,12 @@ do {\
 //INCEPTION CONNECTION
 #define CONNECT_BRANCH_I(l_branch, l_down, i) \
 do {\
-  assert(TENSOR_SIZE((l_down).input_desc) == (TENSOR_SIZE((l_branch).input_desc)));\
-  assert(TENSOR_SIZE((l_branch).d_output_desc) == (TENSOR_SIZE((l_down).d_input_desc)));\
   (l_down).input = (l_branch).input;\
   (l_branch).d_output[i] = (l_down).d_input;\
 } while (0)
 
 #define CONNECT_CONCAT_I(l_up, l_concat, i) \
 do {\
-  assert(TENSOR_SIZE((l_concat).input_desc[i]) == (TENSOR_SIZE((l_up).output_desc)));\
-  assert(TENSOR_SIZE((l_up).d_output_desc) == (TENSOR_SIZE((l_concat).d_input_desc[i])));\
   (l_concat).input[i] = (l_up).output;\
   (l_up).d_output = (l_concat).d_input[i];\
 } while (0)
@@ -485,6 +454,9 @@ void train_bwd_branch_layer(branch_layer *l);
 void train_bwd_bias_layer(bias_layer *l);
 void train_bwd_concat_layer(concat_layer *l);
 
+void set_input(input_layer *l, float *data_in);
+void set_label(softmax_layer *l, int *label_in);
+
 void print_time_conv_layer(conv_layer *l, char *name);
 void print_time_fc_layer(fc_layer *l, char *name);
 void print_time_bn_layer(bn_layer *l, char *name);
@@ -517,10 +489,5 @@ int get_bias(bias_layer l, float *bias);
 int set_bias(bias_layer l, float *bias);
 
 float get_loss(softmax_layer *l, int *label_in);
-
-static inline size_t PSIZE_BN(bn_layer l)
-{
-  return sizeof(float) * l.channel * 2;
-}
 
 #endif

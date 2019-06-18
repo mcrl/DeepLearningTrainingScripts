@@ -13,7 +13,6 @@
 #include "memory.h"
 #include "execute.h"
 
-
 void init_pool_layer(
     pool_layer *l, int batch_size, int filter_height, int filter_width, 
     int pad_height, int pad_width, int stride_height, int stride_width,
@@ -33,8 +32,8 @@ void init_pool_layer(
   l->channel = channel;
   l->input_height = input_height;
   l->input_width = input_width;
-  l->output_height = CALC_SIZE(input_height, filter_height, pad_height, stride_height);
-  l->output_width = CALC_SIZE(input_width, filter_width, pad_width, stride_width);
+  l->output_height = (input_height + pad_height * 2 - filter_height) / stride_height + 1;
+  l->output_width = (input_width + pad_width * 2 - filter_width) / stride_width + 1;
 
   l->type = type;
 
