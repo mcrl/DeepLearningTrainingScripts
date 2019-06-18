@@ -322,7 +322,7 @@ typedef struct elt_layer_s {
   gpu_mem input[2];
   gpu_mem output, d_output;
   
-  float fwd_t, bwd_t;
+  float fwd_t;
 } elt_layer;
 
 #define MAX_OUT 2
@@ -337,7 +337,7 @@ typedef struct branch_layer_s {
   gpu_mem input, d_input;
   gpu_mem d_output[MAX_OUT];
   
-  float fwd_t, bwd_t;
+  float bwd_t;
 } branch_layer;
 
 typedef struct bias_layer_s {

@@ -72,19 +72,15 @@ void train_fwd_elt_layer(elt_layer *l)
 
 void train_bwd_elt_layer(elt_layer *l)
 {
-  START_CNN_TIMER(bwd_t);
-
-  STOP_CNN_TIMER(bwd_t);
 }
 
 void print_time_elt_layer(elt_layer *l, char *name)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
+      name, l->fwd_t, 0.0f, 0.0f, 0.0f);
 }
 
 void clear_time_elt_layer(elt_layer *l)
 {
   l->fwd_t = 0.0;
-  l->bwd_t = 0.0;
 }

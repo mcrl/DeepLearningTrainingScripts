@@ -65,9 +65,6 @@ void init_branch_layer(
 
 void train_fwd_branch_layer(branch_layer *l)
 {
-  START_CNN_TIMER(fwd_t);
-
-  STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_branch_layer(branch_layer *l)
@@ -80,11 +77,10 @@ void train_bwd_branch_layer(branch_layer *l)
 void print_time_branch_layer(branch_layer *l, char *name)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
+      name, 0.0f, l->bwd_t, 0.0f, 0.0f);
 }
 
 void clear_time_branch_layer(branch_layer *l)
 {
-  l->fwd_t = 0.0;
   l->bwd_t = 0.0;
 }
