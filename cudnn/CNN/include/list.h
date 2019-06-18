@@ -25,13 +25,18 @@ void list_push_back(list_t *l, iterator_t *it);
 
 void list_push_front(list_t *l, iterator_t *it);
 
-#define list_data(T, it, member) \
-  ( (T *)((char *)&it->next - (size_t)&((T *)0)->member) )
+#define list_data(type, it) \
+  ( (type *)((char *)&(it)->next - (size_t)&((type *)0)->iterator.next) )
 
-#define list_iter(l, it) \
-  for (iterator_t *it = (l)->head.next; it != &(l)->tail; it = (it)->next)
+#define list_iter(list, it) \
+  for (iterator_t *it = (list)->head.next; it != &(list)->tail; it = it->next)
 
 /////////////////////////////////////////////////////////////////
+//
+//   struct data {
+//     var member;
+//     iterator_t iterator;
+//   } item1, item2, item3;
 //
 //   list_t *l = (list_t *)malloc(sizeof(list_t));
 //   list_init(l);
@@ -43,9 +48,11 @@ void list_push_front(list_t *l, iterator_t *it);
 //   list_erase(l, &item2->iterator);
 //
 //   list_iter(l, it) {
-//     var data = list_data(type_name, it, member_name);
-//     job(data);
+//     struct data *item = list_data(struct data, it);
+//     job(item);
 //   }
+//
+//   free(l);
 //
 /////////////////////////////////////////////////////////////////
 
