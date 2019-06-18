@@ -3,8 +3,10 @@
 
 #include <stdbool.h>
 
-#include <cudnn.h>
 #include <cuda.h>
+#include <cudnn.h>
+
+#include "list.h"
 
 #define DET_CUDNN
 //#define TIME_LAYER
@@ -26,7 +28,6 @@ do {\
 } while (0)
 
 //RESNET CONNECTION
-//l_elt.d_output must be set first!!
 #define CONNECT_DIAMOND_RES(l_branch, l_elt, l_up, l_down) \
 do {\
   (l_elt).input1 = (l_branch).input;\
@@ -45,7 +46,6 @@ do {\
   (l_branch).d_output[1] = (l_down2).d_input;\
 } while (0)
 
-//l_elt.d_output must be set first!!
 #define CONNECT_ELT(l_up1, l_up2, l_elt) \
 do {\
   (l_elt).input1 = (l_up1).output;\
@@ -76,58 +76,6 @@ do {\
 do {\
   (l_concat).input[i] = (l_up).output;\
   (l_up).d_output = (l_concat).d_input[i];\
-} while (0)
-
-#define DUMP_BOTH(l, s, f) \
-  DUMP_OUTPUT(l, s, f); DUMP_D_INPUT(l, s, f)
-
-#define DUMP_OUTPUT(l, s, f) \
-do {\
-  int sz = TENSOR_SIZE((l).output_desc);\
-  float *tmp = (float *)malloc(sizeof(float) * sz);\
-  chkCUDA(cudaMemcpy(tmp, (l).output, sizeof(float) * sz, cudaMemcpyDeviceToHost));\
-  printf("Dump %s output, %d elems\n", s, sz);\
-  fwrite(tmp, sizeof(float), sz, f);\
-  free(tmp);\
-} while (0)
-
-#define DUMP_D_INPUT(l, s, f) \
-do {\
-  int sz = TENSOR_SIZE((l).d_input_desc);\
-  float *tmp = (float *)malloc(sizeof(float) * sz);\
-  chkCUDA(cudaMemcpy(tmp, (l).d_input, sizeof(float) * sz, cudaMemcpyDeviceToHost));\
-  printf("Dump %s d_input, %d elems\n", s, sz);\
-  fwrite(tmp, sizeof(float), sz, f);\
-  free(tmp);\
-} while (0)
-
-#define LOAD_AND_CHECK_BOTH(l, s, f) \
-  LOAD_AND_CHECK_OUTPUT(l, s, f); LOAD_AND_CHECK_D_INPUT(l, s, f)
-
-#define LOAD_AND_CHECK_OUTPUT(l, s, f) \
-do {\
-  int sz = TENSOR_SIZE((l).output_desc);\
-  float *tmp1 = (float *)malloc(sizeof(float) * sz);\
-  float *tmp2 = (float *)malloc(sizeof(float) * sz);\
-  chkCUDA(cudaMemcpy(tmp1, (l).output, sizeof(float) * sz, cudaMemcpyDeviceToHost));\
-  printf("Check %s output, %d elems\n", s, sz);\
-  assert(fread(tmp2, sizeof(float), sz, f) == sz);\
-  verify(tmp1, tmp2, sz);\
-  free(tmp1);\
-  free(tmp2);\
-} while (0)
-
-#define LOAD_AND_CHECK_D_INPUT(l, s, f) \
-do {\
-  int sz = TENSOR_SIZE((l).d_input_desc);\
-  float *tmp1 = (float *)malloc(sizeof(float) * sz);\
-  float *tmp2 = (float *)malloc(sizeof(float) * sz);\
-  chkCUDA(cudaMemcpy(tmp1, (l).d_input, sizeof(float) * sz, cudaMemcpyDeviceToHost));\
-  printf("Check %s d_input, %d elems\n", s, sz);\
-  assert(fread(tmp2, sizeof(float), sz, f) == sz);\
-  verify(tmp1, tmp2, sz);\
-  free(tmp1);\
-  free(tmp2);\
 } while (0)
 
 //PARAM INIT
@@ -174,51 +122,35 @@ do {\
 } while (0)
 
 #define LOAD_CONV_RES(l) \
-do {\
-  param += set_conv_filter(l, param);\
-} while (0) 
+do { param += set_conv_filter(l, param); } while (0) 
 
 #define LOAD_FC(l) \
-do {\
-  param += set_fc_weight(l, param);\
-} while (0)\
+do { param += set_fc_weight(l, param); } while (0)
 
 #define LOAD_CONV(l) \
-do {\
-  param += set_conv_filter(l, param);\
-} while (0)\
+do { param += set_conv_filter(l, param); } while (0)
 
 #define LOAD_BN(l) \
-do {\
-  param += set_bn_vars(l, param);\
-} while (0) 
+do { param += set_bn_vars(l, param); } while (0) 
 
 #define LOAD_BIAS(l) \
-do {\
-  param += set_bias(l, param);\
-} while (0)
+do { param += set_bias(l, param); } while (0)
 
 #define GET_FC(l) \
-do {\
-  param += get_fc_weight(l, param);\
-} while (0)
+do { param += get_fc_weight(l, param); } while (0)
 
 #define GET_CONV(l) \
-do {\
-  param += get_conv_filter(l, param);\
-} while (0)
+do { param += get_conv_filter(l, param); } while (0)
 
 #define GET_BN(l) \
-do {\
-  param += get_bn_vars(l, param);\
-} while (0)
+do { param += get_bn_vars(l, param); } while (0)
 
 #define GET_BIAS(l) \
-do {\
-  param += get_bias(l, param);\
-} while (0)
+do { param += get_bias(l, param); } while (0)
 
 typedef struct fc_layer_s {
+  iterator_t iterator;
+
   int batch_size
   int in, out;
 
@@ -238,6 +170,8 @@ typedef struct fc_layer_s {
 } fc_layer;
 
 typedef struct conv_layer_s {
+  iterator_t iterator;
+
   int filter_height, filter_width;
   int pad_height, pad_width;
   int stride_height, stride_width;
@@ -262,6 +196,8 @@ typedef struct conv_layer_s {
 } conv_layer;
 
 typedef struct bn_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int channel, height, width;
 
@@ -282,6 +218,8 @@ typedef struct bn_layer_s {
 typedef enum { RELU_T } act_type;
 
 typedef struct act_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int channel, height, width;
 
@@ -295,8 +233,10 @@ typedef struct act_layer_s {
   float fwd_t, bwd_t;
 } act_layer;
 
-#define MAX_IN 2
+#define MAX_IN 16
 typedef struct concat_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int input_channel[MAX_IN];
   int output_channel, height, width;
@@ -312,6 +252,8 @@ typedef struct concat_layer_s {
 typedef enum { ADD_T } elt_type;
 
 typedef struct elt_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int channel, height, width;
 
@@ -325,8 +267,10 @@ typedef struct elt_layer_s {
   float fwd_t;
 } elt_layer;
 
-#define MAX_OUT 2
+#define MAX_OUT 16
 typedef struct branch_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int channel, height, width;
 
@@ -341,6 +285,8 @@ typedef struct branch_layer_s {
 } branch_layer;
 
 typedef struct bias_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int channel, height, width;
 
@@ -355,6 +301,8 @@ typedef enum {
 } pool_type;
 
 typedef struct pool_layer_s {
+  iterator_t iterator;
+
   int filter_height, filter_width;
   int pad_height, pad_width;
   int stride_height, stride_width;
@@ -375,6 +323,8 @@ typedef struct pool_layer_s {
 } pool_layer;
 
 typedef struct input_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int channel, height, width;
 
@@ -382,6 +332,8 @@ typedef struct input_layer_s {
 } input_layer;
 
 typedef struct softmax_layer_s {
+  iterator_t iterator;
+
   int batch_size;
   int out;
 
