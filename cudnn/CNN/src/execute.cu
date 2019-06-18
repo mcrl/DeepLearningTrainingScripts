@@ -691,7 +691,7 @@ int execute_apply_gradient(
 // CUDA kernel based API
 ////////////////////////////////////////////////////////////
 
-__global__ void concat2(
+__global__ void cuda_concat2(
     int batch_size, int channel1, int channel2, int height, int width,
     float *in1, float *in2, float *out)
 {
@@ -721,7 +721,7 @@ __global__ void concat2(
   }
 }
 
-__global__ void split2(
+__global__ void cuda_split2(
     int batch_size, int channel1, int channel2, int height, int width,
     float *out, float *in1, float *in2)
 {
@@ -751,7 +751,7 @@ __global__ void split2(
   }
 }
 
-__global__ void set_label(
+__global__ void cuda_set_label(
     int batch_size, int class_cnt, int *label_in, float *label)
 {
   int tid_x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -780,7 +780,7 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
     int batch_size = distribute(dy->dim[0], dev);
     int grid_size = (batch_size * dy->dim[1] * dy->dim[2] * dy->dim[3] + block_size - 1) / block_size;
 
-    split2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+    cuda_split2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, dx[0]->dim[1], dx[1]->dim[1], dy->dim[2], dy->dim[3],
         (float *)dy->dev_ptr[dev], (float *)dx[0]->dev_ptr[dev], (float *)dx[1]->dev_ptr[dev]);
   }
@@ -802,7 +802,7 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
     int batch_size = distribute(y->dim[0], dev);
     int grid_size = (batch_size * y->dim[1] * y->dim[2] * y->dim[3] + block_size - 1) / block_size;
 
-    concat2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+    cuda_concat2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, x[0]->dim[1], x[1]->dim[1], y->dim[2], y->dim[3],
         (float *)x[0]->dev_ptr[dev], (float *)x[1]->dev_ptr[dev], (float *)y->dev_ptr[dev]);
   }
@@ -813,6 +813,9 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
 /* Softmax */
 int execute_set_label(gpu_mem l, gpu_mem dy)
 {
+  assert(l->obj_type == DATA);
+  assert(dy->obj_type == DATA_GRADIENT);
+
   int block_size = 256;
 
   for (int dev = 0; dev < num_devices; dev++) {
@@ -820,7 +823,7 @@ int execute_set_label(gpu_mem l, gpu_mem dy)
     int class_size = l->dim[1];
     int grid_size = (batch_size * class_size + block_size - 1) / block_size;
 
-    set_label<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+    cuda_set_label<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, class_size, (int *)l->dev_ptr[dev], (float *)dy->dev_ptr[dev]);
   }
 

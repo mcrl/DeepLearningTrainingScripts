@@ -56,7 +56,7 @@ void init_softmax_layer(softmax_layer *l, int batch_size, int out)
       &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
 
   create_buffer[DATA](
-      &l->label, 4, CUDNN_DATA_INT32, l->batch_size, l->out, 1, 1);
+      &l->label, 4, CUDNN_DATA_INT32, l->batch_size, 1, 1, 1);
 }
 
 void train_fwd_softmax_layer(softmax_layer *l)
@@ -74,11 +74,16 @@ void train_bwd_softmax_layer(softmax_layer *l)
   STOP_CNN_TIMER(bwd_t);
 }
 
+void set_label(softmax_layer *l, int *label_in)
+{
+  write_buffer(l->label, label_in, true);
+  execute_set_label(l->label, l->d_output);
+}
+
 float get_loss(softmax_layer *l, int *label_in)
 {
-  /*
   float *result = (float *)malloc(sizeof(float) * l->out * l->batch_size);
-  chkCUDA(cudaMemcpy(result, l->output, sizeof(float) * l->out * l->batch_size, cudaMemcpyDeviceToHost));
+  read_buffer(result, l->output, true);
 
   float sum = 0;
   for (int i = 0; i < l->batch_size; i++) {
@@ -89,9 +94,7 @@ float get_loss(softmax_layer *l, int *label_in)
     sum -= loss;
   }
 
-  return (sum / l->batch_size);
-  */
-  return 0;
+  return sum / l->batch_size;
 }
 
 void print_time_softmax_layer(softmax_layer *l, char *name)

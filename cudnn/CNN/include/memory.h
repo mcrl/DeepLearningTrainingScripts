@@ -22,7 +22,7 @@ typedef enum {
   BN_PARAM,           // reserved unique input
   BN_PARAM_GRADIENT,  // reusable unique output
   WORK_SPACE,         // reusable private output
-  RESERVE_SPACE       // reusable private input/output
+  RESERVE_SPACE,      // reusable private input/output
 } gpu_memory_object_t;
 
 struct _gpu_memory_object {
@@ -45,8 +45,6 @@ struct _gpu_memory_object {
 
 typedef struct _gpu_memory_object *gpu_mem;
 
-size_t get_buffer_size(gpu_mem mem);
-
 ////////////////////////////////////////////////////////////
 // Memory Object Management API
 ////////////////////////////////////////////////////////////
@@ -54,6 +52,8 @@ size_t get_buffer_size(gpu_mem mem);
 int __init_object_manager(void);
 
 int __finalize_object_manager(void);
+
+size_t get_buffer_size(gpu_mem mem);
 
 /* int create_buffer[DATA](gpu_mem *, int, cudnnDataType_t, [int]) */
 int create_buffer_data(gpu_mem *mem, int ndim, ...);
@@ -93,6 +93,12 @@ const create_buffer_t create_buffer[] = {
 };
 
 int destroy_buffer(gpu_mem mem);
+
+////////////////////////////////////////////////////////////
+// Device Memory Allocation API
+////////////////////////////////////////////////////////////
+
+
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API

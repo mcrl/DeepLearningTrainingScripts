@@ -38,3 +38,8 @@ void init_input_layer(
       &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
       l->channel, l->height, l->width);
 }
+
+void set_input(input_layer *l, float *data_in)
+{
+  write_buffer(l->output, data_in, true);
+}

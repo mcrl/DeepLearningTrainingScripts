@@ -24,19 +24,6 @@ static inline int distribute(int n, int dev)
   return (n / num_devices) + (dev < n % num_devices);
 }
 
-size_t get_buffer_size(gpu_mem mem)
-{
-  if (mem->distributed) {
-    size_t total_size = 0;
-    for (int dev = 0; dev < num_devices; dev++) {
-      total_size += mem->size_in_bytes[dev];
-    }
-    return total_size;
-  }
-
-  return mem->size_in_bytes[0];
-}
-
 ////////////////////////////////////////////////////////////
 // Memory Object Management API
 ////////////////////////////////////////////////////////////
@@ -71,6 +58,19 @@ int __finalize_object_manager()
   }
 
   return 0;
+}
+
+size_t get_buffer_size(gpu_mem mem)
+{
+  if (mem->distributed) {
+    size_t total_size = 0;
+    for (int dev = 0; dev < num_devices; dev++) {
+      total_size += mem->size_in_bytes[dev];
+    }
+    return total_size;
+  }
+
+  return mem->size_in_bytes[0];
 }
 
 static void assign_flags_from_object_type(gpu_mem mem);
@@ -375,8 +375,6 @@ int create_4d_tensor(
 
     mem->size_in_bytes[dev] = size_of_cudnn_data_type[data_type] * n_dev * c * h * w;
     mem->dev_ptr[dev] = NULL;
-    //chkCUDA(cudaSetDevice(dev));
-    //chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
 
   return 0;
@@ -500,6 +498,12 @@ void assign_flags_from_object_type(gpu_mem mem)
       break;
   }
 }
+
+////////////////////////////////////////////////////////////
+// Device Memory Allocation API
+////////////////////////////////////////////////////////////
+
+
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API
