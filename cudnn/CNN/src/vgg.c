@@ -2,38 +2,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <math.h>
-#include <time.h>
-
-#include <cuda.h>
-#include <cuda_profiler_api.h>
-#include <cudnn.h>
-#include <cublas_v2.h>
 
 #include "cnn.h"
-#include "cnn_cuda.h"
-
 #include "params.h"
-#include "utils.h"
-
 #include "layer.h"
-
-static float one = 1.0f;
-static float zero = 0.0f;
-
-cudnnHandle_t cudnn;
-cublasHandle_t cublas;
-
-cudnnTensorDescriptor_t grads_desc;
-cudnnTensorDescriptor_t probs_desc;
-
-float *p;
-float *d;
-float *buf_d = NULL;
-
-int off_d;
-
-int *labels;
+#include "utils.h"
+#include "execute.h"
 
 typedef struct vgg_s {
   input_layer input;
@@ -45,11 +19,10 @@ typedef struct vgg_s {
   bias_layer fc_bias[3];
   act_layer fc_relu[2];
   softmax_layer softmax;
+  bool is_initiated;
 } vgg;
 
 vgg net;
-
-bool is_initiated = false;
 
 void params_modify()
 {
@@ -57,138 +30,146 @@ void params_modify()
 
 void vgg_init(int batch_size)
 {
-  chkCUDNN(cudnnCreate(&cudnn));
-  chkCUBLAS(cublasCreate(&cublas));
+  char name[1024];
+
   srand(params.seed);
 
-  init_input_layer(&net.input, cudnn, batch_size, 3, 224, 224);
-  int prev_channel = 3;
+  sprintf(name, "input");
+  init_input_layer(&net.input, name, batch_size, 3, 224, 224);
 
   for (int i = 0; i < 2; i++) {
-    init_conv_layer(&net.conv[i], cudnn, batch_size, 3, 3, 1, 1, 1, 1, prev_channel, 64, 224, 224);
-    init_bias_layer(&net.bias[i], cudnn, batch_size, 64, 224, 224);
-    init_act_layer(&net.relu[i], cudnn, batch_size, 64, 224, 224);
-    prev_channel = 64;
+    sprintf(name, "conv_%02d", i);
+    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 3, 64, 224, 224);
+
+    sprintf(name, "bias_%02d", i);
+    init_bias_layer(&net.bias[i], name, batch_size, 64, 224, 224);
+
+    sprintf(name, "relu_%02d", i);
+    init_act_layer(&net.relu[i], name, batch_size, 64, 224, 224, RELU_T);
   }
 
-  init_pool_layer(&net.pool[0], cudnn, batch_size, 2, 2, 0, 0, 2, 2, 64, 224, 224, max);
+  sprintf(name, "pool_0");
+  init_pool_layer(&net.pool[0], name, batch_size, 2, 2, 0, 0, 2, 2, 64, 224, 224, MAX_T);
 
   for (int i = 2; i < 4; i++) {
-    init_conv_layer(&net.conv[i], cudnn, batch_size, 3, 3, 1, 1, 1, 1, prev_channel, 128, 112, 112);
-    init_bias_layer(&net.bias[i], cudnn, batch_size, 128, 112, 112);
-    init_act_layer(&net.relu[i], cudnn, batch_size, 128, 112, 112);
-    prev_channel = 128;
+    sprintf(name, "conv_%02d", i);
+    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 64, 128, 112, 112);
+
+    sprintf(name, "bias_%02d", i);
+    init_bias_layer(&net.bias[i], name, batch_size, 128, 112, 112);
+
+    sprintf(name, "relu_%02d", i);
+    init_act_layer(&net.relu[i], name, batch_size, 128, 112, 112, RELU_T);
   }
 
-  init_pool_layer(&net.pool[1], cudnn, batch_size, 2, 2, 0, 0, 2, 2, 128, 112, 112, max);
+  sprintf(name, "pool_1");
+  init_pool_layer(&net.pool[1], name, batch_size, 2, 2, 0, 0, 2, 2, 128, 112, 112, MAX_T);
 
   for (int i = 4; i < 7; i++) {
-    init_conv_layer(&net.conv[i], cudnn, batch_size, 3, 3, 1, 1, 1, 1, prev_channel, 256, 56, 56);
-    init_bias_layer(&net.bias[i], cudnn, batch_size, 256, 56, 56);
-    init_act_layer(&net.relu[i], cudnn, batch_size, 256, 56, 56);
-    prev_channel = 256;
+    sprintf(name, "conv_%02d", i);
+    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 128, 256, 56, 56);
+
+    sprintf(name, "bias_%02d", i);
+    init_bias_layer(&net.bias[i], name, batch_size, 256, 56, 56);
+
+    sprintf(name, "relu_%02d", i);
+    init_act_layer(&net.relu[i], name, batch_size, 256, 56, 56, RELU_T);
   }
 
-  init_pool_layer(&net.pool[2], cudnn, batch_size, 2, 2, 0, 0, 2, 2, 256, 56, 56, max);
+  sprintf(name, "pool_2");
+  init_pool_layer(&net.pool[2], name, batch_size, 2, 2, 0, 0, 2, 2, 256, 56, 56, MAX_T);
 
   for (int i = 7; i < 10; i++) {
-    init_conv_layer(&net.conv[i], cudnn, batch_size, 3, 3, 1, 1, 1, 1, prev_channel, 512, 28, 28);
-    init_bias_layer(&net.bias[i], cudnn, batch_size, 512, 28, 28);
-    init_act_layer(&net.relu[i], cudnn, batch_size, 512, 28, 28);
-    prev_channel = 512;
+    sprintf(name, "conv_%02d", i);
+    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 256, 512, 28, 28);
+
+    sprintf(name, "bias_%02d", i);
+    init_bias_layer(&net.bias[i], name, batch_size, 512, 28, 28);
+
+    sprintf(name, "relu_%02d", i);
+    init_act_layer(&net.relu[i], name, batch_size, 512, 28, 28, RELU_T);
   }
 
-  init_pool_layer(&net.pool[3], cudnn, batch_size, 2, 2, 0, 0, 2, 2, 512, 28, 28, max);
+  sprintf(name, "pool_3");
+  init_pool_layer(&net.pool[3], name, batch_size, 2, 2, 0, 0, 2, 2, 512, 28, 28, MAX_T);
 
   for (int i = 10; i < 13; i++) {
-    init_conv_layer(&net.conv[i], cudnn, batch_size, 3, 3, 1, 1, 1, 1, prev_channel, 512, 14, 14);
-    init_bias_layer(&net.bias[i], cudnn, batch_size, 512, 14, 14);
-    init_act_layer(&net.relu[i], cudnn, batch_size, 512, 14, 14);
-    prev_channel = 512;
+    sprintf(name, "conv_%02d", i);
+    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 512, 512, 14, 14);
+
+    sprintf(name, "bias_%02d", i);
+    init_bias_layer(&net.bias[i], name, batch_size, 512, 14, 14);
+
+    sprintf(name, "relu_%02d", i);
+    init_act_layer(&net.relu[i], name, batch_size, 512, 14, 14, RELU_T);
   }
 
-  init_pool_layer(&net.pool[4], cudnn, batch_size, 2, 2, 0, 0, 2, 2, 512, 14, 14, max);
-  prev_channel = 7 * 7 * 512;
+  sprintf(name, "pool_4");
+  init_pool_layer(&net.pool[4], name, batch_size, 2, 2, 0, 0, 2, 2, 512, 14, 14, MAX_T);
 
   for (int i = 0; i < 2; i++) {
-    init_fc_layer(&net.fc[i], cudnn, batch_size, prev_channel, 4096);
-    init_bias_layer(&net.fc_bias[i], cudnn, batch_size, 4096, 1, 1);
-    init_act_layer(&net.fc_relu[i], cudnn, batch_size, 4096, 1, 1);
-    prev_channel = 4096;
+    sprintf(name, "fc_%d", i);
+    init_fc_layer(&net.fc[i], name, batch_size, 512 * 7 * 7, 4096);
+
+    sprintf(name, "fc_bias_%d", i);
+    init_bias_layer(&net.fc_bias[i], name, batch_size, 4096, 1, 1);
+
+    sprintf(name, "fc_relu_%d", i);
+    init_act_layer(&net.fc_relu[i], name, batch_size, 4096, 1, 1, RELU_T);
   }
 
-  init_fc_layer(&net.fc[2], cudnn, batch_size, prev_channel, 1000);
-  init_bias_layer(&net.fc_bias[2], cudnn, batch_size, 1000, 1, 1);
-  init_softmax_layer(&net.softmax, cudnn, batch_size, 1000);
+  sprintf(name, "fc_2");
+  init_fc_layer(&net.fc[2], name, batch_size, 4096, 1000);
 
-  init_conv_workspace();
+  sprintf(name, "fc_bias_2");
+  init_bias_layer(&net.fc_bias[2], name, batch_size, 1000, 1, 1);
 
-  is_initiated = true;
+  sprintf(name, "softmax");
+  init_softmax_layer(&net.softmax, name, batch_size, 1000);
+
+  net.is_initiated = true;
 }
+
+#define VGG_PARAM(FUNC) \
+do {\
+  for (int i = 0; i < 13; i++) {\
+    FUNC##_CONV(&net.conv[i]);\
+    FUNC##_BIAS(&net.bias[i]);\
+  }\
+  for (int i = 0; i < 3; i++) {\
+    FUNC##_FC(&net.fc[i]);\
+    FUNC##_BIAS(&net.fc_bias[i]);\
+  }\
+} while (0)
 
 size_t vgg_get_param_size()
 {
   size_t sum = 0;
 
-  for (int i = 0; i < 13; i++) {
-    sum += PSIZE_CONV(net.conv[i]);
-    sum += PSIZE_BIAS(net.bias[i]);
-  }
-
-  for (int i = 0; i < 3; i++) {
-    sum += PSIZE_FC(net.fc[i]);
-    sum += PSIZE_BIAS(net.fc_bias[i]);
-  }
+  VGG_PARAM(SIZE);
 
   return sum;
 }
 
 void vgg_load_param(float *param)
 {
-  for (int i = 0; i < 13; i++) {
-    LOAD_CONV(net.conv[i]);
-    LOAD_BIAS(net.bias[i]);
-  }
-
-  for (int i = 0; i < 3; i++) {
-    LOAD_FC(net.fc[i]);
-    LOAD_BIAS(net.fc_bias[i]);
-  }
+  VGG_PARAM(LOAD);
 }
 
-void vgg_set_param(float *param)
+void vgg_init_param(float *param)
 {
-  for (int i = 0; i < 13; i++) {
-    INIT_CONV(net.conv[i]);
-    INIT_BIAS(net.bias[i]);
-  }
-
-  for (int i = 0; i < 3; i++) {
-    INIT_FC(net.fc[i]);
-    INIT_BIAS(net.fc_bias[i]);
-  }
+  VGG_PARAM(INIT);
 }
 
 void vgg_get_param(float *param)
 {
-  for (int i = 0; i < 13; i++) {
-    param += get_conv_filter(net.conv[i], param);
-    param += get_bias(net.bias[i], param);
-  }
-
-  for (int i = 0; i < 3; i++) {
-    param += get_fc_weight(net.fc[i], param);
-    param += get_bias(net.fc_bias[i], param);
-  }
+  VGG_PARAM(GET);
 }
 
-void vgg_copy_input(int batch_size, float *data_in, int *label_in)
+void vgg_copy_input(float *data_in, int *label_in)
 {
-  size_t input_size = sizeof(float) * batch_size * params.width * params.height * params.channel;
-
-  chkCUDA(cudaMemcpy(net.input.output, data_in, input_size, cudaMemcpyHostToDevice)); 
-  chkCUDA(cudaMemcpy(net.softmax.label_in, label_in, batch_size * sizeof(int), cudaMemcpyHostToDevice)); 
-  cuda_set_label(batch_size, 1000, net.softmax.label_in, net.softmax.label);
+  set_input(&net.input, data_in);
+  set_label(&net.softmax, label_in);
 }
 
 void vgg_forward()
@@ -241,6 +222,8 @@ void vgg_backward()
 
 void vgg_connect()
 {
+  CONNECT_INPUT(net.input);
+
   for (int i = 0, j = 0; i < 13; i++) {
     if (i == 0) {
       CONNECT(net.input, net.conv[i]);
@@ -253,7 +236,7 @@ void vgg_connect()
       CONNECT(net.relu[i-1], net.conv[i]);
     }
 
-    CONNECT_DIRECT(net.conv[i], net.bias[i], net.relu[i]);
+    CONNECT_BIAS(net.conv[i], net.bias[i], net.relu[i]);
 
     if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
       CONNECT(net.relu[i], net.pool[j]);
@@ -263,168 +246,59 @@ void vgg_connect()
   CONNECT(net.pool[4], net.fc[0]);
 
   for (int i = 0; i < 2; i++) {
-    CONNECT_DIRECT(net.fc[i], net.fc_bias[i], net.fc_relu[i]);
+    CONNECT_BIAS(net.fc[i], net.fc_bias[i], net.fc_relu[i]);
     CONNECT(net.fc_relu[i], net.fc[i+1]);
   }
 
-  CONNECT_DIRECT(net.fc[2], net.fc_bias[2], net.softmax);
+  CONNECT_BIAS(net.fc[2], net.fc_bias[2], net.softmax);
 }
+
+#define VGG_LAYER(FUNC) \
+do {\
+  for (int i = 0, j = 0; i < 13; i++) {\
+    FUNC##_conv_layer(&net.conv[i]);\
+    FUNC##_bias_layer(&net.bias[i]);\
+    FUNC##_act_layer(&net.relu[i]);\
+    if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {\
+      FUNC##_pool_layer(&net.pool[j]);\
+      j++;\
+    }\
+  }\
+  for (int i = 0; i < 3; i++) {\
+    FUNC##_fc_layer(&net.fc[i]);\
+    FUNC##_bias_layer(&net.fc_bias[i]);\
+    if (i < 2) {\
+      FUNC##_act_layer(&net.fc_relu[i]);\
+    }\
+  }\
+  FUNC##_softmax_layer(&net.softmax);\
+} while (0)
 
 void vgg_clear_time()
 {
-  for (int i = 0, j = 0; i < 13; i++) {
-    clear_time_conv_layer(&net.conv[i]);
-    clear_time_bias_layer(&net.bias[i]);
-    clear_time_act_layer(&net.relu[i]);
-
-    if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      clear_time_pool_layer(&net.pool[j]);
-      j++;
-    }
-  }
-
-  for (int i = 0; i < 3; i++) {
-    clear_time_fc_layer(&net.fc[i]);
-    clear_time_bias_layer(&net.fc_bias[i]);
-
-    if (i < 2) {
-      clear_time_act_layer(&net.fc_relu[i]);
-    }
-  }
-
-  clear_time_softmax_layer(&net.softmax);
+  VGG_LAYER(clear_time);
 }
 
 void vgg_print_time()
 {
-  char buf[1024];
   printf("name, fwd, bwd_data, bwd_weight, update\n");
 
-  for (int i = 0, j = 0; i < 13; i++) {
-    sprintf(buf, "conv%d", i);
-    print_time_conv_layer(&net.conv[i], buf);
-    sprintf(buf, "bias%d", i);
-    print_time_bias_layer(&net.bias[i], buf);
-    sprintf(buf, "relu%d", i);
-    print_time_act_layer(&net.relu[i], buf);
-
-    if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      sprintf(buf, "pool%d", i);
-      print_time_pool_layer(&net.pool[j], buf);
-      j++;
-    }
-  }
-
-  for (int i = 0; i < 3; i++) {
-    sprintf(buf, "fc%d", i);
-    print_time_fc_layer(&net.fc[i], buf);
-    sprintf(buf, "fc_bias%d", i);
-    print_time_bias_layer(&net.fc_bias[i], buf);
-
-    if (i < 2) {
-      sprintf(buf, "fc_relu%d", i);
-      print_time_act_layer(&net.fc_relu[i], buf);
-    }
-  }
-
-  sprintf(buf, "softmax");
-  print_time_softmax_layer(&net.softmax, buf);
+  VGG_LAYER(print_time);
 }
 
-int exists(const char *fname)
+void cnn_train(int num_train_image, float *train_data, int *train_label)
 {
-  FILE *file;
-  if ((file = fopen(fname, "r"))) {
-    fclose(file);
-    return 1;
-  }
-  return 0;
-}
+  assert(num_train_image % params.batch_size == 0);
 
-void verify(float *res, float *ans, int cnt)
-{
-  const float EPS = 1e-6;
-  for (int i = 0; i < cnt; i++) {
-    if (fabs(res[i]) >= EPS && fabs((res[i] - ans[i])/res[i]) >= EPS) {
-      printf("%e %e relative_diff = %e\n", res[i], ans[i], fabs((res[i] - ans[i])/res[i]));
-    }
+  __init_stream_executer();
+  __init_object_manager();
 
-    if (isnan(res[i]) || ((fabs(res[i]) >= EPS) && (fabs((res[i] - ans[i])/res[i]) >= EPS))) {
-      fprintf(stderr, "Verification failed at %d, res = %lf, ans = %lf (rel diff = %lf)\n",
-          i, res[i], ans[i], fabs((res[i] - ans[i])/res[i]));
-      return;
-    }
-  }
-  fprintf(stderr, "Verification success\n");
-}
-
-void vgg_dump(FILE *f)
-{
-  char buf[1024];
-
-  for (int i = 0, j = 0; i < 13; i++) {
-    sprintf(buf, "conv%d", i);
-    DUMP_BOTH(net.conv[i], buf, f);
-    sprintf(buf, "relu%d", i);
-    DUMP_BOTH(net.relu[i], buf, f);
-
-    if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      sprintf(buf, "pool%d", i);
-      DUMP_BOTH(net.pool[j], buf, f);
-      j++;
-    }
-  }
-
-  for (int i = 0; i < 3; i++) {
-    sprintf(buf, "fc%d", i);
-    DUMP_BOTH(net.fc[i], buf, f);
-
-    if (i < 2) {
-      sprintf(buf, "fc_relu%d", i);
-      DUMP_BOTH(net.fc_relu[i], buf, f);
-    }
-  }
-
-  sprintf(buf, "softmax");
-  DUMP_BOTH(net.softmax, buf, f);
-}
-
-void vgg_check(FILE *f)
-{
-  char buf[1024];
-
-  for (int i = 0, j = 0; i < 13; i++) {
-    sprintf(buf, "conv%d", i);
-    LOAD_AND_CHECK_BOTH( net.conv[i], buf, f);
-    sprintf(buf, "relu%d", i);
-    LOAD_AND_CHECK_BOTH( net.relu[i], buf, f);
-
-    if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      sprintf(buf, "pool%d", i);
-      LOAD_AND_CHECK_BOTH( net.pool[j], buf, f);
-      j++;
-    }
-  }
-
-  for (int i = 0; i < 3; i++) {
-    sprintf(buf, "fc%d", i);
-    LOAD_AND_CHECK_BOTH( net.fc[i], buf, f);
-    if (i < 2) {
-      sprintf(buf, "fc_relu%d", i);
-      LOAD_AND_CHECK_BOTH( net.fc_relu[i], buf, f);
-    }
-  }
-
-  sprintf(buf, "softmax");
-  LOAD_AND_CHECK_BOTH( net.softmax, buf, f);
-}
-
-void cnn_train(int num_train_image, float *train_data, int *train_label) 
-{
-  assert(num_train_image % params.batch_size == 0); 
-
+  printf("init layers\n");
   vgg_init(params.batch_size);
+  printf("connect layers\n");
   vgg_connect();
+  printf("alloc workspace\n");
+  alloc_work_space();
 
   int num_batches = num_train_image / params.batch_size;
   fprintf(stderr, "total iteration : %d\n", num_batches);
@@ -433,9 +307,11 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   float *param_in = (float *)malloc(sz);
   float *param_out = (float *)malloc(sz);
   float *param_result = (float *)malloc(sz);
+
   INITIALIZE_RAND(param_in, sz / sizeof(float));
 
-  vgg_set_param(param_in);
+  printf("init params\n");
+  vgg_init_param(param_in);
 
   struct timespec st;
   struct timespec st_f;
@@ -443,6 +319,8 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   struct timespec ed_f;
 
   int first = 1;
+
+  printf("timer start\n");
 
   clock_gettime(CLOCK_MONOTONIC, &st);
 
@@ -456,13 +334,14 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
       if (first) {
         clock_gettime(CLOCK_MONOTONIC, &st_f);
       }
-      int batch_size = params.batch_size;
 
       data_in = train_data + b * params.batch_size * params.width * params.height * params.channel;
       label_in = train_label + b * params.batch_size;
 
-      vgg_copy_input(batch_size, data_in, label_in);
+      printf("[%d] copy input\n", b);
+      vgg_copy_input(data_in, label_in);
 
+      printf("[%d] forward\n", b);
       vgg_forward();
 
 #ifdef PRINT_LOSS
@@ -470,10 +349,11 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
       printf("loss for %d/%d : %f\n", b, num_batches, l);
 #endif
 
+      printf("[%d] backward\n", b);
       vgg_backward();
 
       if (first) {
-        cudaDeviceSynchronize();
+        cudaDeviceSynchronize(); // FIXME
         clock_gettime(CLOCK_MONOTONIC, &ed_f);
 #ifdef TIME_LAYER
         vgg_clear_time();
@@ -483,8 +363,8 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     }
   }
 
-  cudaDeviceSynchronize();
-  clock_gettime(CLOCK_MONOTONIC, &ed);          
+  cudaDeviceSynchronize(); // FIXME
+  clock_gettime(CLOCK_MONOTONIC, &ed);
 
   float training_time = diff_timespec_ms(st, ed);
   float first_training_time = diff_timespec_ms(st_f, ed_f);
@@ -504,7 +384,7 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   if (exists(params.result)) {
     FILE *f = fopen(params.result, "rb");
     assert(sz  == fread(param_result, 1, sz, f));
-    verify(param_out, param_result, sz / (sizeof(float))); 
+    verify(param_out, param_result, sz / (sizeof(float)));
     fclose(f);
   }
   else {
@@ -512,16 +392,4 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     fwrite(param_out, 1, sz, f);
     fclose(f);
   }
-#ifdef CHK_OUTPUT
-  if (exists(params.result_output)) {
-    FILE *f = fopen(params.result_output, "rb");
-    vgg_check(f);
-    fclose(f);
-  }
-  else {
-    FILE *f = fopen(params.result_output, "wb");
-    vgg_dump(f);
-    fclose(f);
-  }
-#endif
 }

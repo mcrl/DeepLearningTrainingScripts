@@ -1,4 +1,5 @@
-CNN := vgg resnet densenet inception
+CNN := vgg
+#CNN := vgg resnet densenet inception
 
 NVCC := nvcc
 CC := gcc
@@ -11,12 +12,12 @@ INCLUDE_PATH := ./include
 CC_INCLUDE := -I$(INCLUDE_PATH)
 CC_LIBRARY := -lm
 
-CC_CUDA_INCLUDE := -I/usr/local/cuda/include -I/usr/local/cuda/cudnn-7.4.2/include
-CC_CUDA_LIBRARY := -L/usr/lib/x86_64-linux-gnu/ -L/usr/local/cuda/lib64/ -L/usr/local/cuda/cudnn-7.4.2/lib64 -lcudnn -lcublas -lcudart
+CC_CUDA_INCLUDE := -I/usr/include -I/usr/local/cuda/include -I/usr/local/cuda/cudnn-7.4.2/include
+CC_CUDA_LIBRARY := -L/usr/lib/x86_64-linux-gnu/ -L/usr/lib64 -L/usr/local/cuda/lib64/ -L/usr/local/cuda/cudnn-7.4.2/lib64 -lcudnn -lcublas -lcudart -lnccl
 
 CUDA_INCLUDE_PATH := -I/usr/local/cuda/include -I/usr/local/cuda/cudnn-7.4.2/include
 
-SRCS := $(SRC_PATH)/main.c $(SRC_PATH)/input.c $(SRC_PATH)/conv.c $(SRC_PATH)/fc.c $(SRC_PATH)/elt.c $(SRC_PATH)/bn.c $(SRC_PATH)/pool.c $(SRC_PATH)/act.c $(SRC_PATH)/softmax.c $(SRC_PATH)/branch.c $(SRC_PATH)/bias.c $(SRC_PATH)/concat.c
+SRCS := $(SRC_PATH)/main.c $(SRC_PATH)/input.c $(SRC_PATH)/conv.c $(SRC_PATH)/fc.c $(SRC_PATH)/elt.c $(SRC_PATH)/bn.c $(SRC_PATH)/pool.c $(SRC_PATH)/act.c $(SRC_PATH)/softmax.c $(SRC_PATH)/branch.c $(SRC_PATH)/bias.c $(SRC_PATH)/concat.c $(SRC_PATH)/memory.c $(SRC_PATH)/list.c
 CU_SRCS := $(wildcard $(SRC_PATH)/*.cu)
 CPP_SRCS := $(wildcard $(SRC_PATH)/*.cpp)
 
@@ -40,7 +41,8 @@ $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cu
 
 .PHONY : all clean
 
-all: vgg resnet densenet inception
+all: vgg
+#all: vgg resnet densenet inception
 
 vgg : obj/vgg.o $(OBJS) $(CPP_OBJS) $(CU_OBJS)
 	$(CXX) -o $@ $^ $(CC_INCLUDE) $(CC_CUDA_INCLUDE) $(CC_LIBRARY) $(CC_CUDA_LIBRARY) $(CFLAGS) -O3

@@ -2,15 +2,13 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include "params.h"
 #include "cnn.h"
 #include "layer.h"
+#include "params.h"
 
 int num_train_image;
 float *train_image;
 int *train_label;
-
-void params_modify();
 
 struct params params = {
   .seed = 0xdeadbeef,
@@ -33,18 +31,18 @@ struct params params = {
   .result_output = NULL
 };
 
-void load_input(const char *file_image, const char *file_label,
-  float **image, int **label)
+void load_input(
+    const char *file_image, const char *file_label, float **image, int **label)
 {
   FILE *fimage = fopen(file_image, "rb");
   FILE *flabel = fopen(file_label, "rb");
-  if(!fimage)
-  {
+
+  if (!fimage) {
     fprintf(stderr, "%s does not exist\n", file_image);
     exit(0);
   }
-  if(!flabel)
-  {
+
+  if (!flabel) {
     fprintf(stderr, "%s does not exist\n", file_label);
     exit(0);
   }
@@ -52,7 +50,7 @@ void load_input(const char *file_image, const char *file_label,
   fprintf(stderr, "num_image : %d\n", num_train_image);
 
   size_t s1, s2, s3, s4;
-  s1 = sizeof(float) * params.width * params.height * params.channel * (num_train_image);
+  s1 = sizeof(float) * params.width * params.height * params.channel * num_train_image;
   s2 = sizeof(int) * num_train_image;
 
   *image = (float *)malloc(s1);
@@ -61,13 +59,12 @@ void load_input(const char *file_image, const char *file_label,
   s3 = fread(*image, 1, s1, fimage);
   s4 = fread(*label, 1, s2, flabel);
 
-  if(s1 != s3)
-  {
+  if (s1 != s3) {
     fprintf(stderr, "%s is too small\n", file_image);
     exit(0);
   }
-  if(s2 != s4)
-  {
+
+  if (s2 != s4) {
     fprintf(stderr, "%s is too small\n", file_label);
     exit(0);
   }
@@ -78,19 +75,11 @@ void load_input(const char *file_image, const char *file_label,
 
 int main(int argc, char *argv[])
 {
-#ifdef CHK_OUTPUT
-  if (argc != 7)
-  {
-    fprintf(stderr, "%s [batch size] [num_batches] [imagebin] [labelbin] [result] [output_file]\n", argv[0]);
+  if (argc < 6) {
+    fprintf(stderr, "%s [batch_size] [iteration] [image] [label] [result]\n", argv[0]);
     return 0;
   }
-#else
-  if (argc != 6)
-  {
-    fprintf(stderr, "%s [batch size] [num_batches] [imagebin] [labelbin] [result]\n", argv[0]);
-    return 0;
-  }
-#endif
+
   params_modify();
   params.batch_size = atoi(argv[1]);
   params.num_batch_per_epoch = atoi(argv[2]);
@@ -100,9 +89,7 @@ int main(int argc, char *argv[])
   params.epochs = 1;
   #endif
   params.result = argv[5];
-#ifdef CHK_OUTPUT
-  params.result_output = argv[6];
-#endif
+
   num_train_image = params.batch_size * params.num_batch_per_epoch;
 
   load_input(argv[3], argv[4], &train_image, &train_label);
@@ -111,4 +98,3 @@ int main(int argc, char *argv[])
 
   return 0;
 }
-
