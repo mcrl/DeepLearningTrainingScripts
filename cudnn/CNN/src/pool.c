@@ -1,12 +1,11 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
@@ -14,13 +13,16 @@
 #include "execute.h"
 
 void init_pool_layer(
-    pool_layer *l, int batch_size, int filter_height, int filter_width, 
+    pool_layer *l, const char *name,
+    int batch_size, int filter_height, int filter_width, 
     int pad_height, int pad_width, int stride_height, int stride_width,
     int channel, int input_height, int input_width, pool_type type)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->filter_height = filter_height;
   l->filter_width = filter_width;
   l->pad_height = pad_height;
@@ -48,7 +50,7 @@ void init_pool_layer(
   ////////////////////////////////////////////////////////////////
   // 2. Set Pooling Descriptor
   ////////////////////////////////////////////////////////////////
-  chkCUDNN(cudnnCreatePoolingDescriptor(&l->pooling_desc));
+  chkCUDNN(cudnnCreatePoolingDescriptor(&l->pool_desc));
 
   // l->type == MAX_T
   chkCUDNN(cudnnSetPooling2dDescriptor(
@@ -86,15 +88,15 @@ void train_fwd_pool_layer(pool_layer *l)
 void train_bwd_pool_layer(pool_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-  execute_pool_fwd(
+  execute_pool_bwd(
       l->pool_desc, l->output, l->d_output, l->input, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 
-void print_time_pool_layer(pool_layer *l, char *name)
+void print_time_pool_layer(pool_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
+      l->name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
 }
 
 void clear_time_pool_layer(pool_layer *l)

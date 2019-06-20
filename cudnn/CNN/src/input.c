@@ -1,12 +1,11 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
@@ -14,11 +13,14 @@
 #include "execute.h"
 
 void init_input_layer(
-    input_layer *l, int batch_size, int channel, int height, int width)
+    input_layer *l, const char *name,
+    int batch_size, int channel, int height, int width)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->batch_size = batch_size;
   l->channel = channel;
   l->height = height;

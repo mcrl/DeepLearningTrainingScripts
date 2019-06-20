@@ -1,12 +1,11 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
@@ -14,17 +13,18 @@
 #include "execute.h"
 
 void init_branch_layer(
-    branch_layer *l, int batch_size, int fan_out,
-    int channel, int height, int width)
+    branch_layer *l, const char *name,
+    int batch_size, int fan_out, int channel, int height, int width)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->batch_size = batch_size;
   l->channel = channel;
   l->height = height;
   l->width = width;
-  l->batch = batch;
 
   l->fan_out = fan_out;
 
@@ -70,14 +70,14 @@ void train_fwd_branch_layer(branch_layer *l)
 void train_bwd_branch_layer(branch_layer *l)
 {
   START_CNN_TIMER(bwd_t);
-  execute_branch(l->op_desc, l->fan_out, l->d_output, l->d_input);
+  execute_branch_bwd(l->op_desc, l->fan_out, l->d_output, l->d_input);
   STOP_CNN_TIMER(bwd_t);
 }
 
-void print_time_branch_layer(branch_layer *l, char *name)
+void print_time_branch_layer(branch_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, 0.0f, l->bwd_t, 0.0f, 0.0f);
+      l->name, 0.0f, l->bwd_t, 0.0f, 0.0f);
 }
 
 void clear_time_branch_layer(branch_layer *l)

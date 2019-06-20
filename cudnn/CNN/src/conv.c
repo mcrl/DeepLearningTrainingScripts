@@ -1,12 +1,11 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
@@ -14,7 +13,8 @@
 #include "execute.h"
 
 void init_conv_layer(
-    conv_layer *l, int batch_size, int filter_height, int filter_width,
+    conv_layer *l, const char *name,
+    int batch_size, int filter_height, int filter_width,
     int pad_height, int pad_width, int stride_height, int stride_width,
     int input_channel, int output_channel, int input_height, int input_width)
 {
@@ -25,6 +25,8 @@ void init_conv_layer(
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->filter_height = filter_height;
   l->filter_width = filter_width;
   l->pad_height = pad_height;
@@ -98,7 +100,7 @@ void init_conv_layer(
   // 4. Get Convolution Algorithm
   ////////////////////////////////////////////////////////////////
   execute_get_conv_fwd_algo(
-      l->conv_desc, l->input, l->filter, l->output, &l->fwd_aglo);
+      l->conv_desc, l->input, l->filter, l->output, &l->fwd_algo);
 
   execute_get_conv_bwd_data_algo(
       l->conv_desc, l->filter, l->d_output, l->d_input, &l->bwd_data_algo);
@@ -146,10 +148,10 @@ void train_bwd_conv_layer(conv_layer *l)
       l->conv_desc, l->bwd_data_algo, l->filter, l->d_output, l->d_input, l->ws_bwd_data);
   STOP_CNN_TIMER(bwd_data_t);
 
-  START_CNN_TIMER(bwd_weight_t);
+  START_CNN_TIMER(bwd_filter_t);
   execute_conv_bwd_filter(
       l->conv_desc, l->bwd_filter_algo, l->input, l->d_output, l->d_filter, l->ws_bwd_filter);
-  STOP_CNN_TIMER(bwd_weight_t);
+  STOP_CNN_TIMER(bwd_filter_t);
 
   START_CNN_TIMER(bwd_update_t);
   execute_apply_gradient(params.learning_rate, l->d_filter, l->filter);
@@ -158,20 +160,20 @@ void train_bwd_conv_layer(conv_layer *l)
 
 int set_conv_filter(conv_layer *l, float *filter)
 {
-  write_buffer(l->filter, fitler, true);
+  write_buffer(l->filter, filter, true);
   return l->filter_height * l->filter_width * l->input_channel * l->output_channel;
 }
 
 int get_conv_filter(conv_layer *l, float *filter)
 {
-  read_buffer(filter, l->fitler, true);
+  read_buffer(filter, l->filter, true);
   return l->filter_height * l->filter_width * l->input_channel * l->output_channel;
 }
 
-void print_time_conv_layer(conv_layer *l, char *name)
+void print_time_conv_layer(conv_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_data_t, l->bwd_filter_t, l->bwd_update_t);
+      l->name, l->fwd_t, l->bwd_data_t, l->bwd_filter_t, l->bwd_update_t);
 }
 
 void clear_time_conv_layer(conv_layer *l)

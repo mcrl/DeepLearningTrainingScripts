@@ -1,24 +1,25 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
-#include <builtin_types.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
 #include "memory.h"
 #include "execute.h"
 
-void init_softmax_layer(softmax_layer *l, int batch_size, int out)
+void init_softmax_layer(
+    softmax_layer *l, const char *name, int batch_size, int out)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->batch_size = batch_size;
   l->out = out;
 
@@ -97,10 +98,10 @@ float get_loss(softmax_layer *l, int *label_in)
   return sum / l->batch_size;
 }
 
-void print_time_softmax_layer(softmax_layer *l, char *name)
+void print_time_softmax_layer(softmax_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
+      l->name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
 }
 
 void clear_time_softmax_layer(softmax_layer *l)

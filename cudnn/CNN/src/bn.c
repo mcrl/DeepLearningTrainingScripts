@@ -1,12 +1,11 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
@@ -14,11 +13,14 @@
 #include "execute.h"
 
 void init_bn_layer(
-    bn_layer *l, int batch_size, int channel, int height, int width, int nth)
+    bn_layer *l, const char *name,
+    int batch_size, int channel, int height, int width, int nth)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->batch_size = batch_size;
   l->channel = channel;
   l->height = height;
@@ -140,10 +142,10 @@ int get_bn_vars(bn_layer *l, float *bn)
   return l->channel * 2;
 }
 
-void print_time_bn_layer(bn_layer *l, char *name)
+void print_time_bn_layer(bn_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_t, 0.0f, l->bwd_update_t);
+      l->name, l->fwd_t, l->bwd_t, 0.0f, l->bwd_update_t);
 }
 
 void clear_time_bn_layer(bn_layer *l)

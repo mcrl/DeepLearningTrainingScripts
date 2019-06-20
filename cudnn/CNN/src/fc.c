@@ -1,12 +1,11 @@
 #include <math.h>
 #include <time.h>
+#include <string.h>
 
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
 
-#include "cnn.h"
-#include "cnn_cuda.h"
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
@@ -14,7 +13,7 @@
 #include "execute.h"
 
 void init_fc_layer(
-    fc_layer *l, int batch_size, int in, int out)
+    fc_layer *l, const char *name, int batch_size, int in, int out)
 {
   size_t ws_fwd_size;
   size_t ws_bwd_data_size;
@@ -23,6 +22,8 @@ void init_fc_layer(
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
   ////////////////////////////////////////////////////////////////
+  strcpy(l->name, name);
+
   l->batch_size = batch_size;
   l->in = in;
   l->out = out;
@@ -146,10 +147,10 @@ int get_fc_weight(fc_layer *l, float *weight)
   return l->in * l->out;
 }
 
-void print_time_fc_layer(fc_layer *l, char *name)
+void print_time_fc_layer(fc_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      name, l->fwd_t, l->bwd_data_t, l->bwd_weight_t, l->bwd_update_t);
+      l->name, l->fwd_t, l->bwd_data_t, l->bwd_weight_t, l->bwd_update_t);
 }
 
 void clear_time_fc_layer(fc_layer *l)
