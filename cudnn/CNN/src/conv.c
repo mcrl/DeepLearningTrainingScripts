@@ -70,29 +70,29 @@ void init_conv_layer(
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors & Filters
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->input_channel, l->input_height, l->input_width);
+  create_buffer_data(
+      &l->input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->input_channel, l->input_height, l->input_width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->input_channel, l->input_height, l->input_width);
+  create_buffer_data_gradient(
+      &l->d_input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->input_channel, l->input_height, l->input_width);
 
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->output_channel, l->output_height, l->output_width);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->output_channel, l->output_height, l->output_width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->output_channel, l->output_height, l->output_width);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->output_channel, l->output_height, l->output_width);
 
-  create_buffer[WEIGHT](
-      &l->filter, 4, CUDNN_DATA_FLOAT,
+  create_buffer_weight(
+      &l->filter, CUDNN_DATA_FLOAT, 4,
       l->output_channel, l->input_channel,
       l->filter_height, l->filter_width);
   
-  create_buffer[WEIGHT_GRADIENT](
-      &l->d_filter, 4, CUDNN_DATA_FLOAT,
+  create_buffer_weight_gradient(
+      &l->d_filter, CUDNN_DATA_FLOAT, 4,
       l->output_channel, l->input_channel,
       l->filter_height, l->filter_width);
 
@@ -126,11 +126,11 @@ void init_conv_layer(
   ////////////////////////////////////////////////////////////////
   // 6. Create Work Spaces
   ////////////////////////////////////////////////////////////////
-  create_buffer[WORK_SPACE](&l->ws_fwd, 1, ws_fwd_size);
+  create_buffer_work_space(&l->ws_fwd, ws_fwd_size);
 
-  create_buffer[WORK_SPACE](&l->ws_bwd_data, 1, ws_bwd_data_size);
+  create_buffer_work_space(&l->ws_bwd_data, ws_bwd_data_size);
 
-  create_buffer[WORK_SPACE](&l->ws_bwd_filter, 1, ws_bwd_filter_size);
+  create_buffer_work_space(&l->ws_bwd_filter, ws_bwd_filter_size);
 }
 
 void train_fwd_conv_layer(conv_layer *l)
@@ -156,6 +156,12 @@ void train_bwd_conv_layer(conv_layer *l)
   START_CNN_TIMER(bwd_update_t);
   execute_apply_gradient(params.learning_rate, l->d_filter, l->filter);
   STOP_CNN_TIMER(bwd_update_t);
+}
+
+size_t param_size_conv(conv_layer *l)
+{
+  int count = l->filter_height * l->filter_width * l->input_channel * l->output_channel;
+  return data_type_size(l->filter) * count;
 }
 
 int set_conv_filter(conv_layer *l, float *filter)

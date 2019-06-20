@@ -43,23 +43,24 @@ void init_branch_layer(
   chkCUDNN(cudnnCreateOpTensorDescriptor(&l->op_desc));
 
   chkCUDNN(cudnnSetOpTensorDescriptor(
-        l->op_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
+        l->op_desc, CUDNN_OP_TENSOR_ADD,
+        CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
 
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data_gradient(
+      &l->d_input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
   for (int i = 0; i < l->fan_out; i++) {
-    create_buffer[DATA_GRADIENT](
-        &l->d_output[i], 4, CUDNN_DATA_FLOAT, l->batch_size,
-        l->channel, l->height, l->width);
+    create_buffer_data_gradient(
+        &l->d_output[i], CUDNN_DATA_FLOAT, 4,
+        l->batch_size, l->channel, l->height, l->width);
   }
 }
 

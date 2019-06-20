@@ -37,19 +37,19 @@ void init_bias_layer(
   ////////////////////////////////////////////////////////////////
   // 2. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[WEIGHT](
-      &l->bias, 4, CUDNN_DATA_FLOAT, 1, l->channel, 1, 1);
+  create_buffer_weight(
+      &l->bias, CUDNN_DATA_FLOAT, 4, 1, l->channel, 1, 1);
 
-  create_buffer[WEIGHT_GRADIENT](
-      &l->d_bias, 4, CUDNN_DATA_FLOAT, 1, l->channel, 1, 1);
+  create_buffer_weight_gradient(
+      &l->d_bias, CUDNN_DATA_FLOAT, 4, 1, l->channel, 1, 1);
 }
 
 void train_fwd_bias_layer(bias_layer *l)
@@ -68,6 +68,12 @@ void train_bwd_bias_layer(bias_layer *l)
   START_CNN_TIMER(bwd_update_t);
   execute_apply_gradient(params.learning_rate, l->d_bias, l->bias);
   STOP_CNN_TIMER(bwd_update_t);
+}
+
+size_t param_size_bias(bias_layer *l)
+{
+  int count = l->channel;
+  return data_type_size(l->bias) * count;
 }
 
 int set_bias(bias_layer *l, float *bias)

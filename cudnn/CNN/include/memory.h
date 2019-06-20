@@ -10,7 +10,7 @@
 
 #include "list.h"
 
-#define MAX_NDEV 4
+#define MAX_NDEV 1
 
 ////////////////////////////////////////////////////////////
 // Abstract Device Memory Object
@@ -50,6 +50,8 @@ struct _gpu_memory_object {
 
 typedef struct _gpu_memory_object *gpu_mem;
 
+size_t data_type_size(gpu_mem mem);
+
 ////////////////////////////////////////////////////////////
 // Memory Object Management API
 ////////////////////////////////////////////////////////////
@@ -60,42 +62,29 @@ int __finalize_object_manager(void);
 
 size_t get_buffer_size(gpu_mem mem);
 
-/* int create_buffer[DATA](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_data(gpu_mem *mem, int ndim, ...);
+int create_buffer_data(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...);
 
-/* int create_buffer[DATA_GRADIENT](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_data_gradient(gpu_mem *mem, int ndim, ...);
+int create_buffer_data_gradient(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...);
 
-/* int create_buffer[WEIGHT](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_weight(gpu_mem *mem, int ndim, ...);
+int create_buffer_weight(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...);
 
-/* int create_buffer[WEIGHT_GRADIENT](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_weight_gradient(gpu_mem *mem, int ndim, ...);
+int create_buffer_weight_gradient(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...);
 
-/* int create_buffer[BN_PARAM](gpu_mem *, int, cudnnDataType_t, cudnnBatchNormMode_t, [int]) */
-int create_buffer_bn_param(gpu_mem *mem, int ndim, ...);
+int create_buffer_bn_param(
+    gpu_mem *mem, cudnnDataType_t data_type,
+    cudnnBatchNormMode_t mode, int ndim, ...);
 
-/* int create_buffer[BN_PARAM_GRADIENT](gpu_mem *, int, cudnnDataType_t, cudnnBatchNormMode_t, [int]) */
-int create_buffer_bn_param_gradient(gpu_mem *mem, int ndim, ...);
+int create_buffer_bn_param_gradient(
+    gpu_mem *mem, cudnnDataType_t data_type,
+    cudnnBatchNormMode_t mode, int ndim, ...);
 
-/* int create_buffer[WORK_SPACE](gpu_mem *, int, size_t) */
-int create_buffer_work_space(gpu_mem *mem, int ndim, ...);
+int create_buffer_work_space(gpu_mem *mem, size_t size_in_bytes);
 
-/* int create_buffer[RESERVE_SPACE](gpu_mem *, int, size_t) */
-int create_buffer_reserve_space(gpu_mem *mem, int ndim, ...);
-
-typedef int (*create_buffer_t)(gpu_mem *, int, ...);
-
-const create_buffer_t create_buffer[] = {
-  create_buffer_data,
-  create_buffer_data_gradient,
-  create_buffer_weight,
-  create_buffer_weight_gradient,
-  create_buffer_bn_param,
-  create_buffer_bn_param_gradient,
-  create_buffer_work_space,
-  create_buffer_reserve_space
-};
+int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes);
 
 int destroy_buffer(gpu_mem mem);
 

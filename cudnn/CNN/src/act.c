@@ -48,21 +48,21 @@ void init_act_layer(
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data_gradient(
+      &l->d_input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 }
 
 void train_fwd_act_layer(act_layer *l)

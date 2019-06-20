@@ -12,9 +12,14 @@
 #include "memory.h"
 #include "execute.h"
 
+static const cudnnPoolingMode_t pool_mode[] = {
+  CUDNN_POOLING_MAX_DETERMINISTIC,
+  CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING
+};
+
 void init_pool_layer(
     pool_layer *l, const char *name,
-    int batch_size, int filter_height, int filter_width, 
+    int batch_size, int window_height, int window_width, 
     int pad_height, int pad_width, int stride_height, int stride_width,
     int channel, int input_height, int input_width, pool_type type)
 {
@@ -23,8 +28,8 @@ void init_pool_layer(
   ////////////////////////////////////////////////////////////////
   strcpy(l->name, name);
 
-  l->filter_height = filter_height;
-  l->filter_width = filter_width;
+  l->window_height = window_height;
+  l->window_width = window_width;
   l->pad_height = pad_height;
   l->pad_width = pad_width;
   l->stride_height = stride_height;
@@ -34,8 +39,8 @@ void init_pool_layer(
   l->channel = channel;
   l->input_height = input_height;
   l->input_width = input_width;
-  l->output_height = (input_height + pad_height * 2 - filter_height) / stride_height + 1;
-  l->output_width = (input_width + pad_width * 2 - filter_width) / stride_width + 1;
+  l->output_height = (input_height + pad_height * 2 - window_height) / stride_height + 1;
+  l->output_width = (input_width + pad_width * 2 - window_width) / stride_width + 1;
 
   l->type = type;
 
@@ -52,30 +57,29 @@ void init_pool_layer(
   ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreatePoolingDescriptor(&l->pool_desc));
 
-  // l->type == MAX_T
   chkCUDNN(cudnnSetPooling2dDescriptor(
-        l->pool_desc, CUDNN_POOLING_MAX_DETERMINISTIC,
-        CUDNN_NOT_PROPAGATE_NAN, filter_height, filter_width,
+        l->pool_desc, pool_mode[l->type],
+        CUDNN_NOT_PROPAGATE_NAN, window_height, window_width,
         pad_height, pad_width, stride_height, stride_width));
 
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->input_height, l->input_width);
+  create_buffer_data(
+      &l->input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->input_height, l->input_width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->input_height, l->input_width);
+  create_buffer_data_gradient(
+      &l->d_input, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->input_height, l->input_width);
 
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->output_height, l->output_width);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->output_height, l->output_width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->output_height, l->output_width);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->output_height, l->output_width);
 }
 
 void train_fwd_pool_layer(pool_layer *l)

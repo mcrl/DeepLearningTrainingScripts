@@ -9,9 +9,9 @@
 #include "utils.h"
 #include "list.h"
 
-//extern int node_id;
-//extern int num_nodes;
-//extern int num_workers;
+//int node_id;
+//int num_nodes;
+//int num_workers;
 int num_devices = 1;
 ncclUniqueId nccl_id;
 
@@ -19,11 +19,20 @@ static cudaStream_t memory_stream[MAX_NDEV];
 static ncclComm_t nccl_comm[MAX_NDEV];
 static list_t memory_list[NUM_OBJECT_TYPE];
 
-static size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
+static const size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 
 static inline int distribute(int n, int dev)
 {
   return (n / num_devices) + (dev < n % num_devices);
+}
+
+////////////////////////////////////////////////////////////
+// Abstract Device Memory Object
+////////////////////////////////////////////////////////////
+
+size_t data_type_size(gpu_mem mem)
+{
+  return size_of_cudnn_data_type[(int)mem->data_type];
 }
 
 ////////////////////////////////////////////////////////////
@@ -35,6 +44,7 @@ int __init_object_manager()
   static bool initialized = false;
 
   if (initialized) return -1;
+  else printf("initialize memory object manager\n");
 
   for (int type = 0; type < NUM_OBJECT_TYPE; type++) {
     list_init(&memory_list[type]);
@@ -57,6 +67,14 @@ int __init_object_manager()
 
 int __finalize_object_manager()
 {
+  for (int type = 0; type < NUM_OBJECT_TYPE; type++) {
+    list_t *l = &memory_list[type];
+    list_iter(l, it) {
+      gpu_mem mem = list_data(struct _gpu_memory_object, it);
+      destroy_buffer(mem);
+    }
+  }
+
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaStreamDestroy(memory_stream[dev]));
@@ -84,14 +102,13 @@ static void assign_flags_from_object_type(gpu_mem mem);
 static int create_4d_tensor(
     gpu_mem mem, cudnnDataType_t data_type, int n, int c, int h, int w);
 
-/* int create_buffer[DATA](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_data(gpu_mem *mem, int ndim, ...)
+int create_buffer_data(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
   va_list ap;
 
   va_start(ap, ndim);
-  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
   for (int i = 0; i < ndim; i++) {
     args[i] = va_arg(ap, int);
   }
@@ -117,14 +134,13 @@ int create_buffer_data(gpu_mem *mem, int ndim, ...)
   }
 }
 
-/* int create_buffer[DATA_GRADIENT](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_data_gradient(gpu_mem *mem, int ndim, ...)
+int create_buffer_data_gradient(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
   va_list ap;
 
   va_start(ap, ndim);
-  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
   for (int i = 0; i < ndim; i++) {
     args[i] = va_arg(ap, int);
   }
@@ -153,14 +169,13 @@ int create_buffer_data_gradient(gpu_mem *mem, int ndim, ...)
 static int create_4d_weight(
     gpu_mem mem, cudnnDataType_t data_type, int k, int c, int h, int w);
 
-/* int create_buffer[WEIGHT](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_weight(gpu_mem *mem, int ndim, ...)
+int create_buffer_weight(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
   va_list ap;
 
   va_start(ap, ndim);
-  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
   for (int i = 0; i < ndim; i++) {
     args[i] = va_arg(ap, int);
   }
@@ -186,14 +201,13 @@ int create_buffer_weight(gpu_mem *mem, int ndim, ...)
   }
 }
 
-/* int create_buffer[WEIGHT_GRADIENT](gpu_mem *, int, cudnnDataType_t, [int]) */
-int create_buffer_weight_gradient(gpu_mem *mem, int ndim, ...)
+int create_buffer_weight_gradient(
+    gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
   va_list ap;
 
   va_start(ap, ndim);
-  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
   for (int i = 0; i < ndim; i++) {
     args[i] = va_arg(ap, int);
   }
@@ -219,21 +233,20 @@ int create_buffer_weight_gradient(gpu_mem *mem, int ndim, ...)
   }
 }
 
-static void derive_bn_shape(cudnnBatchNormMode_t mode, int shape[], int ndim);
+static void derive_bn_shape(
+    cudnnBatchNormMode_t mode, int shape[], int ndim);
 
-/* int create_buffer[BN_PARAM](gpu_mem *, int, cudnnDataType_t, cudnnBatchNormMode_t, [int]) */
-int create_buffer_bn_param(gpu_mem *mem, int ndim, ...)
+int create_buffer_bn_param(
+    gpu_mem *mem, cudnnDataType_t data_type,
+    cudnnBatchNormMode_t mode, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
   va_list ap;
 
   va_start(ap, ndim);
-  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
-  cudnnBatchNormMode_t mode = (cudnnBatchNormMode_t)va_arg(ap, int);
   for (int i = 0; i < ndim; i++) {
     args[i] = va_arg(ap, int);
   }
-  derive_bn_shape(mode, args, ndim);
   va_end(ap);
 
   if (mem == NULL || *mem != NULL) return -1;
@@ -244,6 +257,8 @@ int create_buffer_bn_param(gpu_mem *mem, int ndim, ...)
   (*mem)->obj_type = BN_PARAM;
 
   assign_flags_from_object_type(*mem);
+
+  derive_bn_shape(mode, args, ndim);
 
   switch (ndim) {
     case 4:
@@ -256,19 +271,17 @@ int create_buffer_bn_param(gpu_mem *mem, int ndim, ...)
   }
 }
 
-/* int create_buffer[BN_PARAM_GRADIENT](gpu_mem *, int, cudnnDataType_t, cudnnBatchNormMode_t, [int]) */
-int create_buffer_bn_param_gradient(gpu_mem *mem, int ndim, ...)
+int create_buffer_bn_param_gradient(
+    gpu_mem *mem, cudnnDataType_t data_type,
+    cudnnBatchNormMode_t mode, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
   va_list ap;
 
   va_start(ap, ndim);
-  cudnnDataType_t data_type = (cudnnDataType_t)va_arg(ap, int);
-  cudnnBatchNormMode_t mode = (cudnnBatchNormMode_t)va_arg(ap, int);
   for (int i = 0; i < ndim; i++) {
     args[i] = va_arg(ap, int);
   }
-  derive_bn_shape(mode, args, ndim);
   va_end(ap);
 
   if (mem == NULL || *mem != NULL) return -1;
@@ -279,6 +292,8 @@ int create_buffer_bn_param_gradient(gpu_mem *mem, int ndim, ...)
   (*mem)->obj_type = BN_PARAM_GRADIENT;
 
   assign_flags_from_object_type(*mem);
+
+  derive_bn_shape(mode, args, ndim);
 
   switch (ndim) {
     case 4:
@@ -293,15 +308,8 @@ int create_buffer_bn_param_gradient(gpu_mem *mem, int ndim, ...)
 
 static int create_rawspace(gpu_mem mem, size_t size_in_bytes);
 
-/* int create_buffer[WORK_SPACE](gpu_mem *, int, size_t) */
-int create_buffer_work_space(gpu_mem *mem, int ndim, ...)
+int create_buffer_work_space(gpu_mem *mem, size_t size_in_bytes)
 {
-  va_list ap;
-
-  va_start(ap, ndim);
-  size_t size_in_bytes = va_arg(ap, size_t);
-  va_end(ap);
-
   if (mem == NULL || *mem != NULL) return -1;
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
@@ -314,15 +322,8 @@ int create_buffer_work_space(gpu_mem *mem, int ndim, ...)
   return create_rawspace(*mem, size_in_bytes);
 }
 
-/* int create_buffer[RESERVE_SPACE](gpu_mem *, int, size_t) */
-int create_buffer_reserve_space(gpu_mem *mem, int ndim, ...)
+int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes)
 {
-  va_list ap;
-
-  va_start(ap, ndim);
-  size_t size_in_bytes = va_arg(ap, size_t);
-  va_end(ap);
-
   if (mem == NULL || *mem != NULL) return -1;
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
@@ -592,6 +593,10 @@ int write_buffer(const gpu_mem dst, const void *src, bool synch)
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
 
+      printf("[write_buffer] dst: %p, src: %p, size: %d, stream: %d (tensor)\n",
+          dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
+          memory_stream[dev]);
+
       chkCUDA(cudaMemcpyAsync(
             dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
             cudaMemcpyHostToDevice, memory_stream[dev]));
@@ -610,6 +615,10 @@ int write_buffer(const gpu_mem dst, const void *src, bool synch)
   else if (dst->consistent) {
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
+
+      printf("[write_buffer] dst: %p, src: %p, size: %d, stream: %d (weight)\n",
+          dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
+          memory_stream[dev]);
 
       chkCUDA(cudaMemcpyAsync(
             dst->dev_ptr[dev], host, dst->size_in_bytes[dev],

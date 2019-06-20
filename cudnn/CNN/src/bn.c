@@ -54,52 +54,52 @@ void init_bn_layer(
   ////////////////////////////////////////////////////////////////
   // 2. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
-
-  create_buffer[DATA](
-      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
-
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
-
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
-
-  create_buffer[BN_PARAM](
-      &l->scale, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_data(
+      &l->input, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM_GRADIENT](
-      &l->d_scale, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_data(
+      &l->d_input, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM](
-      &l->bias, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM_GRADIENT](
-      &l->d_bias, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM](
-      &l->running_mean, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_bn_param(
+      &l->scale, CUDNN_DATA_FLOAT, l->mode, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM](
-      &l->running_var, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_bn_param_gradient(
+      &l->d_scale, CUDNN_DATA_FLOAT, l->mode, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM](
-      &l->save_mean, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_bn_param(
+      &l->bias, CUDNN_DATA_FLOAT, l->mode, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[BN_PARAM](
-      &l->save_var, 4, CUDNN_DATA_FLOAT, l->mode,
+  create_buffer_bn_param_gradient(
+      &l->d_bias, CUDNN_DATA_FLOAT, l->mode, 4,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer_bn_param(
+      &l->running_mean, CUDNN_DATA_FLOAT, l->mode, 4,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer_bn_param(
+      &l->running_var, CUDNN_DATA_FLOAT, l->mode, 4,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer_bn_param(
+      &l->save_mean, CUDNN_DATA_FLOAT, l->mode, 4,
+      l->batch_size, l->channel, l->height, l->width);
+
+  create_buffer_bn_param(
+      &l->save_var, CUDNN_DATA_FLOAT, l->mode, 4,
       l->batch_size, l->channel, l->height, l->width);
 }
 
@@ -126,19 +126,26 @@ void train_bwd_bn_layer(bn_layer *l)
   STOP_CNN_TIMER(bwd_update_t);
 }
 
-// assume CUDNN_BATCHNORM_SPATIAL
-int set_bn_vars(bn_layer *l, float *bn)
+// l->mode == CUDNN_BATCHNORM_SPATIAL
+size_t param_size_bn(bn_layer *l)
 {
-  write_buffer(l->scale, bn, true);
-  write_buffer(l->bias, bn + l->channel, true);
+  int count = l->channel * 2;
+  return data_type_size(l->scale) * count;
+}
+
+// l->mode == CUDNN_BATCHNORM_SPATIAL
+int set_bn_param(bn_layer *l, float *param)
+{
+  write_buffer(l->scale, param, true);
+  write_buffer(l->bias, param + l->channel, true);
   return l->channel * 2;
 }
 
-// assume CUDNN_BATCHNORM_SPATIAL
-int get_bn_vars(bn_layer *l, float *bn)
+// l->mode == CUDNN_BATCHNORM_SPATIAL
+int get_bn_param(bn_layer *l, float *param)
 {
-  read_buffer(bn, l->scale, true);
-  read_buffer(bn + l->channel, l->bias, true);
+  read_buffer(param, l->scale, true);
+  read_buffer(param + l->channel, l->bias, true);
   return l->channel * 2;
 }
 

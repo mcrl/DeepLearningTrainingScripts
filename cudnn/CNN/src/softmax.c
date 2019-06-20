@@ -44,20 +44,20 @@ void init_softmax_layer(
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+  create_buffer_data(
+      &l->input, CUDNN_DATA_FLOAT, 4, l->batch_size, l->out, 1, 1);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_input, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+  create_buffer_data_gradient(
+      &l->d_input, CUDNN_DATA_FLOAT, 4, l->batch_size, l->out, 1, 1);
 
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4, l->batch_size, l->out, 1, 1);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size, l->out, 1, 1);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4, l->batch_size, l->out, 1, 1);
 
-  create_buffer[DATA](
-      &l->label, 4, CUDNN_DATA_INT32, l->batch_size, 1, 1, 1);
+  create_buffer_data(
+      &l->label, CUDNN_DATA_INT32, 4, l->batch_size, 1, 1, 1);
 }
 
 void train_fwd_softmax_layer(softmax_layer *l)

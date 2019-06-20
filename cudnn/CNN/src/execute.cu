@@ -25,8 +25,6 @@ static const float zero_float32 = 0.0;
 #define __1 ( (const void *)&one_float32 )
 #define __0 ( (const void *)&zero_float32 )
 
-static size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
-
 static inline int distribute(int n, int dev)
 {
   return (n / num_devices) + (dev < n % num_devices);
@@ -41,8 +39,13 @@ int __init_stream_executer()
   static bool initialized = false;
 
   if (initialized) return -1;
+  else printf("initialize stream executer\n");
 
-  initialized = true;
+  chkCUDA(cudaGetDeviceCount(&num_devices));
+
+  num_devices = MIN(num_devices, MAX_NDEV);
+
+  printf("num_devices : %d\n", num_devices);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -54,6 +57,8 @@ int __init_stream_executer()
     chkCUBLAS(cublasCreate(&cublas_handle[dev]));
     chkCUBLAS(cublasSetStream(cublas_handle[dev], kernel_stream[dev]));
   }
+
+  initialized = true;
 
   return 0;
 }
@@ -673,10 +678,11 @@ int execute_apply_gradient(
   float alpha = -learning_rate;
 
   for (int dev = 0; dev < num_devices; dev++) {
-    int n = w->size_in_bytes[dev] / size_of_cudnn_data_type[w->data_type];
+    int num_elements = w->size_in_bytes[dev] / data_type_size(w);
+
     chkCUBLAS(cublasSaxpy(
           cublas_handle[dev],
-          n,
+          num_elements,
           &alpha,
           (float *)dw->dev_ptr[dev],
           1,

@@ -45,22 +45,22 @@ void init_concat_layer(
   // 2. Create Tensors
   ////////////////////////////////////////////////////////////////
   for (int i = 0; i < l->fan_in; i++) {
-    create_buffer[DATA](
-        &l->input[i], 4, CUDNN_DATA_FLOAT, l->batch_size,
-        l->input_channel[i], l->height, l->width);
+    create_buffer_data(
+        &l->input[i], CUDNN_DATA_FLOAT, 4,
+        l->batch_size, l->input_channel[i], l->height, l->width);
 
-    create_buffer[DATA_GRADIENT](
-        &l->d_input[i], 4, CUDNN_DATA_FLOAT, l->batch_size,
-        l->input_channel[i], l->height, l->width);
+    create_buffer_data_gradient(
+        &l->d_input[i], CUDNN_DATA_FLOAT, 4,
+        l->batch_size, l->input_channel[i], l->height, l->width);
   }
 
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->output_channel, l->height, l->width);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->output_channel, l->height, l->width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->output_channel, l->height, l->width);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->output_channel, l->height, l->width);
 }
 
 void train_fwd_concat_layer(concat_layer *l)

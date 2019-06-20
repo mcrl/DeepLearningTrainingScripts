@@ -12,6 +12,21 @@
 //#define TIME_LAYER
 //#define PRINT_LOSS
 
+#define START_CNN_TIMER(name) \
+static struct timespec st_##name;\
+do {\
+  cudaDeviceSynchronize();\
+  clock_gettime(CLOCK_MONOTONIC, &st_##name);\
+} while (0)
+
+#define STOP_CNN_TIMER(name) \
+static struct timespec ed_##name;\
+do {\
+  cudaDeviceSynchronize();\
+  clock_gettime(CLOCK_MONOTONIC, &ed_##name);\
+  l->name += diff_timespec_ms(st_##name, ed_##name);\
+} while (0)
+
 //VGG CONNECTION
 #define CONNECT_INPUT(in) \
 do {\
@@ -128,11 +143,11 @@ do {\
   param += set_bias(l, param);\
 } while (0)
 
-#define SIZE_FC(l) \
-do { sum += param_size_fc(l); } while (0)
-
 #define SIZE_CONV(l) \
 do { sum += param_size_conv(l); } while (0)
+
+#define SIZE_FC(l) \
+do { sum += param_size_fc(l); } while (0)
 
 #define SIZE_BN(l) \
 do { sum += param_size_bn(l); } while (0)
@@ -140,11 +155,11 @@ do { sum += param_size_bn(l); } while (0)
 #define SIZE_BIAS(l) \
 do { sum += param_size_bias(l); } while (0)
 
-#define LOAD_FC(l) \
-do { param += set_fc_weight(l, param); } while (0)
-
 #define LOAD_CONV(l) \
 do { param += set_conv_filter(l, param); } while (0)
+
+#define LOAD_FC(l) \
+do { param += set_fc_weight(l, param); } while (0)
 
 #define LOAD_BN(l) \
 do { param += set_bn_vars(l, param); } while (0) 
@@ -152,11 +167,11 @@ do { param += set_bn_vars(l, param); } while (0)
 #define LOAD_BIAS(l) \
 do { param += set_bias(l, param); } while (0)
 
-#define GET_FC(l) \
-do { param += get_fc_weight(l, param); } while (0)
-
 #define GET_CONV(l) \
 do { param += get_conv_filter(l, param); } while (0)
+
+#define GET_FC(l) \
+do { param += get_fc_weight(l, param); } while (0)
 
 #define GET_BN(l) \
 do { param += get_bn_vars(l, param); } while (0)
@@ -179,7 +194,7 @@ typedef struct fc_layer_s {
 
   gpu_mem input, d_input;
   gpu_mem output, d_output;
-  gpu_mem filter, d_filter;
+  gpu_mem weight, d_weight;
 
   gpu_mem ws_fwd, ws_bwd_data, ws_bwd_filter;
 
@@ -328,7 +343,7 @@ typedef struct pool_layer_s {
   iterator_t iterator;
   char name[256];
 
-  int filter_height, filter_width;
+  int window_height, window_width;
   int pad_height, pad_width;
   int stride_height, stride_width;
 
@@ -467,14 +482,20 @@ void clear_time_branch_layer(branch_layer *l);
 void clear_time_bias_layer(bias_layer *l);
 void clear_time_concat_layer(concat_layer *l);
 
-int get_conv_filter(conv_layer *l, float *filter);
+size_t param_size_conv(conv_layer *l);
+size_t param_size_fc(fc_layer *l);
+size_t param_size_bn(bn_layer *l);
+size_t param_size_bias(bias_layer *l);
+
 int set_conv_filter(conv_layer *l, float *filter);
-int get_fc_weight(fc_layer *l, float *weight);
 int set_fc_weight(fc_layer *l, float *weight);
-int get_bn_vars(bn_layer *l, float *bn);
-int set_bn_vars(bn_layer *l, float *bn);
-int get_bias(bias_layer *l, float *bias);
+int set_bn_param(bn_layer *l, float *param);
 int set_bias(bias_layer *l, float *bias);
+
+int get_conv_filter(conv_layer *l, float *filter);
+int get_fc_weight(fc_layer *l, float *weight);
+int get_bn_param(bn_layer *l, float *param);
+int get_bias(bias_layer *l, float *bias);
 
 float get_loss(softmax_layer *l, int *label_in);
 

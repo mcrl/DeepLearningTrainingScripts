@@ -43,26 +43,27 @@ void init_elt_layer(
 
   // l->type == ADD_T
   chkCUDNN(cudnnSetOpTensorDescriptor(
-        l->op_desc, CUDNN_OP_TENSOR_ADD, CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
+        l->op_desc, CUDNN_OP_TENSOR_ADD,
+        CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
 
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors
   ////////////////////////////////////////////////////////////////
-  create_buffer[DATA](
-      &l->input[0], 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->input[0], CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA](
-      &l->input[1], 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->input[1], CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA](
-      &l->output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data(
+      &l->output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer[DATA_GRADIENT](
-      &l->d_output, 4, CUDNN_DATA_FLOAT, l->batch_size,
-      l->channel, l->height, l->width);
+  create_buffer_data_gradient(
+      &l->d_output, CUDNN_DATA_FLOAT, 4,
+      l->batch_size, l->channel, l->height, l->width);
 }
 
 void train_fwd_elt_layer(elt_layer *l)

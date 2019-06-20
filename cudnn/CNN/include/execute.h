@@ -8,11 +8,11 @@
 #include <cudnn.h>
 #include <cublas_v2.h>
 
-#include "memory.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+#include "memory.h"
 
 ////////////////////////////////////////////////////////////
 // Executer Management API
