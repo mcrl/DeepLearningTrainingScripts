@@ -10,7 +10,7 @@
 
 #include "list.h"
 
-#define MAX_NDEV 1
+#define MAX_NDEV 4
 
 ////////////////////////////////////////////////////////////
 // Abstract Device Memory Object

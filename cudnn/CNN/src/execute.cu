@@ -90,6 +90,8 @@ int execute_act_bwd(
   assert(dx->obj_type == DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnActivationBackward(
           cudnn_handle[dev],
           actDesc,
@@ -116,6 +118,8 @@ int execute_act_fwd(
   assert(y->obj_type == DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnActivationForward(
           cudnn_handle[dev],
           actDesc,
@@ -148,6 +152,8 @@ int execute_bn_bwd(
   assert(s_var->obj_type == BN_PARAM);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnBatchNormalizationBackward(
           cudnn_handle[dev],
           mode,
@@ -190,6 +196,8 @@ int execute_bn_fwd(
   assert(s_var->obj_type == BN_PARAM);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnBatchNormalizationForwardTraining(
           cudnn_handle[dev],
           mode,
@@ -220,6 +228,8 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
   assert(db->obj_type == WEIGHT_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnConvolutionBackwardBias(
           cudnn_handle[dev],
           __1,
@@ -232,6 +242,7 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
 
   if (1 * num_devices > 1) {
     for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
       chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
     }
 
@@ -247,6 +258,8 @@ int execute_bias_fwd(gpu_mem b, gpu_mem y)
   assert(y->obj_type == DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnAddTensor(
           cudnn_handle[dev],
           __1,
@@ -272,6 +285,8 @@ int execute_branch_bwd(
   assert(dx->obj_type == DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnOpTensor(
           cudnn_handle[dev],
           opDesc,
@@ -313,6 +328,8 @@ int execute_conv_bwd_data(
   assert(workSpace->obj_type == WORK_SPACE);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnConvolutionBackwardData(
           cudnn_handle[dev],
           __1,
@@ -344,6 +361,8 @@ int execute_conv_bwd_filter(
   assert(workSpace->obj_type == WORK_SPACE);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnConvolutionBackwardFilter(
           cudnn_handle[dev],
           __1,
@@ -362,6 +381,8 @@ int execute_conv_bwd_filter(
 
   if (1 * num_devices > 1) {
     for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+
       chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
     }
 
@@ -383,6 +404,8 @@ int execute_conv_fwd(
   assert(workSpace->obj_type == WORK_SPACE);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnConvolutionForward(
           cudnn_handle[dev],
           __1,
@@ -540,6 +563,8 @@ int execute_elt(
     gpu_mem x1, gpu_mem x2, gpu_mem y)
 {
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnOpTensor(
           cudnn_handle[dev],
           opDesc,
@@ -568,6 +593,8 @@ int execute_pool_bwd(
   assert(dx->obj_type == DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnPoolingBackward(
           cudnn_handle[dev],
           poolDesc,
@@ -594,6 +621,8 @@ int execute_pool_fwd(
   assert(y->obj_type == DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnPoolingForward(
           cudnn_handle[dev],
           poolDesc,
@@ -619,6 +648,8 @@ int execute_softmax_bwd(
   assert(dx->obj_type == DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnSoftmaxBackward(
           cudnn_handle[dev],
           algo,
@@ -645,6 +676,8 @@ int execute_softmax_fwd(
   assert(y->obj_type == DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
     chkCUDNN(cudnnSoftmaxForward(
           cudnn_handle[dev],
           algo,
@@ -675,6 +708,7 @@ int execute_apply_gradient(
 
   for (int dev = 0; dev < num_devices; dev++) {
     int num_elements = w->size_in_bytes[dev] / data_type_size(w);
+    chkCUDA(cudaSetDevice(dev));
 
     chkCUBLAS(cublasSaxpy(
           cublas_handle[dev],
@@ -782,6 +816,8 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
     int batch_size = distribute(dy->dim[0], dev);
     int grid_size = (batch_size * dy->dim[1] * dy->dim[2] * dy->dim[3] + block_size - 1) / block_size;
 
+    chkCUDA(cudaSetDevice(dev));
+
     cuda_split2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, dx[0]->dim[1], dx[1]->dim[1], dy->dim[2], dy->dim[3],
         (float *)dy->dev_ptr[dev], (float *)dx[0]->dev_ptr[dev], (float *)dx[1]->dev_ptr[dev]);
@@ -804,6 +840,8 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
     int batch_size = distribute(y->dim[0], dev);
     int grid_size = (batch_size * y->dim[1] * y->dim[2] * y->dim[3] + block_size - 1) / block_size;
 
+    chkCUDA(cudaSetDevice(dev));
+
     cuda_concat2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, x[0]->dim[1], x[1]->dim[1], y->dim[2], y->dim[3],
         (float *)x[0]->dev_ptr[dev], (float *)x[1]->dev_ptr[dev], (float *)y->dev_ptr[dev]);
@@ -824,6 +862,8 @@ int execute_set_label(gpu_mem l, gpu_mem dy)
     int batch_size = distribute(l->dim[0], dev);
     int class_size = l->dim[1];
     int grid_size = (batch_size * class_size + block_size - 1) / block_size;
+
+    chkCUDA(cudaSetDevice(dev));
 
     cuda_set_label<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, class_size, (int *)l->dev_ptr[dev], (float *)dy->dev_ptr[dev]);
