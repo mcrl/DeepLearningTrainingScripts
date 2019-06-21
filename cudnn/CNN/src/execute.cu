@@ -10,14 +10,14 @@
 #include "memory.h"
 #include "utils.h"
 
-//extern int node_id;
-//extern int num_nodes;
-//extern int num_workers;
+extern int node_id;
+extern int num_nodes;
 extern int num_devices;
 
-static cudaStream_t kernel_stream[MAX_NDEV];
-static cudnnHandle_t cudnn_handle[MAX_NDEV];
-static cublasHandle_t cublas_handle[MAX_NDEV];
+extern cudaStream_t memory_stream[MAX_NDEV];
+cudaStream_t kernel_stream[MAX_NDEV];
+cudnnHandle_t cudnn_handle[MAX_NDEV];
+cublasHandle_t cublas_handle[MAX_NDEV];
 
 static const float one_float32 = 1.0;
 static const float zero_float32 = 0.0;
@@ -539,10 +539,6 @@ int execute_elt(
     cudnnOpTensorDescriptor_t opDesc,
     gpu_mem x1, gpu_mem x2, gpu_mem y)
 {
-  assert(x1->obj_type == DATA);
-  assert(x2->obj_type == DATA);
-  assert(y->obj_type == DATA);
-
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDNN(cudnnOpTensor(
           cudnn_handle[dev],
@@ -832,6 +828,43 @@ int execute_set_label(gpu_mem l, gpu_mem dy)
     cuda_set_label<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
         batch_size, class_size, (int *)l->dev_ptr[dev], (float *)dy->dev_ptr[dev]);
   }
+
+  return 0;
+}
+
+////////////////////////////////////////////////////////////
+// CUDA runtime based API
+////////////////////////////////////////////////////////////
+
+int synch_comp()
+{
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
+  }
+  // MPI_Barrier();
+
+  return 0;
+}
+
+int synch_comm()
+{
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
+  }
+  // MPI_Barrier();
+
+  return 0;
+}
+
+int synch_device()
+{
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaDeviceSynchronize());
+  }
+  // MPI_Barrier();
 
   return 0;
 }

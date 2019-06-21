@@ -43,6 +43,7 @@ struct _gpu_memory_object {
   cudnnDataType_t data_type;
   gpu_memory_object_t obj_type;
 
+  bool allocated;
   bool reserved;
   bool distributed;
   bool consistent;

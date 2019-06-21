@@ -77,8 +77,16 @@ void train_bwd_softmax_layer(softmax_layer *l)
 
 void set_label(softmax_layer *l, int *label_in)
 {
+  static bool initialized = false;
+
+  if (!initialized) {
+    alloc_buffer(l->label);
+    initialized = true;
+  }
+
   write_buffer(l->label, label_in, true);
   execute_set_label(l->label, l->d_output);
+  synch_device();
 }
 
 float get_loss(softmax_layer *l, int *label_in)

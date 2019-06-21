@@ -157,6 +157,16 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y);
 /* Softmax */
 int execute_set_label(gpu_mem l, gpu_mem dy);
 
+////////////////////////////////////////////////////////////
+// CUDA runtime based API
+////////////////////////////////////////////////////////////
+
+int synch_comp(void);
+
+int synch_comm(void);
+
+int synch_device(void);
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus

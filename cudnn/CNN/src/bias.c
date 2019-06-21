@@ -45,6 +45,9 @@ void init_bias_layer(
       &l->d_output, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
+  ////////////////////////////////////////////////////////////////
+  // 3. Create Biases
+  ////////////////////////////////////////////////////////////////
   create_buffer_weight(
       &l->bias, CUDNN_DATA_FLOAT, 4, 1, l->channel, 1, 1);
 

@@ -70,6 +70,9 @@ void init_bn_layer(
       &l->d_output, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
+  ////////////////////////////////////////////////////////////////
+  // 3. Create BN Params
+  ////////////////////////////////////////////////////////////////
   create_buffer_bn_param(
       &l->scale, CUDNN_DATA_FLOAT, l->mode, 4,
       l->batch_size, l->channel, l->height, l->width);

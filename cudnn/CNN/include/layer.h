@@ -8,21 +8,20 @@
 
 #include "execute.h"
 
-#define DET_CUDNN
-//#define TIME_LAYER
+#define TIME_LAYER
 //#define PRINT_LOSS
 
 #define START_CNN_TIMER(name) \
 static struct timespec st_##name;\
 do {\
-  cudaDeviceSynchronize();\
+  synch_device();\
   clock_gettime(CLOCK_MONOTONIC, &st_##name);\
 } while (0)
 
 #define STOP_CNN_TIMER(name) \
 static struct timespec ed_##name;\
 do {\
-  cudaDeviceSynchronize();\
+  synch_device();\
   clock_gettime(CLOCK_MONOTONIC, &ed_##name);\
   l->name += diff_timespec_ms(st_##name, ed_##name);\
 } while (0)
@@ -30,12 +29,20 @@ do {\
 //VGG CONNECTION
 #define CONNECT_INPUT(in) \
 do {\
+  assert(!(in).output->allocated);\
+  assert(!(in).d_output->allocated);\
   alloc_buffer((in).output);\
   alloc_buffer((in).d_output);\
 } while (0)
 
 #define CONNECT(up, down) \
 do {\
+  assert((up).output->allocated);\
+  assert((up).d_output->allocated);\
+  assert(!(down).input->allocated);\
+  assert(!(down).d_input->allocated);\
+  assert(!(down).output->allocated);\
+  assert(!(down).d_output->allocated);\
   share_buffer((down).input, (up).output);\
   share_buffer((down).d_input, (up).d_output);\
   alloc_buffer((down).output);\
@@ -44,6 +51,10 @@ do {\
 
 #define CONNECT_BIAS(up, bias, down) \
 do {\
+  assert((up).output->allocated);\
+  assert((up).d_output->allocated);\
+  assert(!(bias).output->allocated);\
+  assert(!(bias).d_output->allocated);\
   share_buffer((bias).output, (up).output);\
   share_buffer((bias).d_output, (up).d_output);\
   CONNECT(bias, down);\

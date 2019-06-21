@@ -53,7 +53,7 @@ void init_fc_layer(
         CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
 
   ////////////////////////////////////////////////////////////////
-  // 3. Create Tensors & Filters
+  // 3. Create Tensors
   ////////////////////////////////////////////////////////////////
   create_buffer_data(
       &l->input, CUDNN_DATA_FLOAT, 4, l->batch_size, l->in, 1, 1);
@@ -67,6 +67,9 @@ void init_fc_layer(
   create_buffer_data_gradient(
       &l->d_output, CUDNN_DATA_FLOAT, 4, l->batch_size, l->out, 1, 1);
 
+  ////////////////////////////////////////////////////////////////
+  // 4. Create Weights
+  ////////////////////////////////////////////////////////////////
   create_buffer_weight(
       &l->weight, CUDNN_DATA_FLOAT, 4, l->out, l->in, 1, 1);
 
@@ -74,19 +77,21 @@ void init_fc_layer(
       &l->d_weight, CUDNN_DATA_FLOAT, 4, l->out, l->in, 1, 1);
 
   ////////////////////////////////////////////////////////////////
-  // 4. Get Convolution Algorithm
+  // 5. Get Convolution Algorithm
   ////////////////////////////////////////////////////////////////
   execute_get_conv_fwd_algo(
       l->conv_desc, l->input, l->weight, l->output, &l->fwd_algo);
 
   execute_get_conv_bwd_data_algo(
       l->conv_desc, l->weight, l->d_output, l->d_input, &l->bwd_data_algo);
+  l->bwd_data_algo = CUDNN_CONVOLUTION_BWD_DATA_ALGO_1; // FIXME
 
   execute_get_conv_bwd_filter_algo(
       l->conv_desc, l->input, l->d_output, l->d_weight, &l->bwd_filter_algo);
+  l->bwd_filter_algo = CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1; // FIXME
 
   ////////////////////////////////////////////////////////////////
-  // 5. Get Work Space Size in Bytes
+  // 6. Get Work Space Size in Bytes
   ////////////////////////////////////////////////////////////////
   execute_get_conv_fwd_ws_size(
       l->conv_desc, l->fwd_algo,
@@ -101,7 +106,7 @@ void init_fc_layer(
       l->input, l->d_output, l->d_weight, &ws_bwd_filter_size);
 
   ////////////////////////////////////////////////////////////////
-  // 6. Create Work Spaces
+  // 7. Create Work Spaces
   ////////////////////////////////////////////////////////////////
   create_buffer_work_space(&l->ws_fwd, ws_fwd_size);
 

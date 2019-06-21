@@ -9,15 +9,14 @@
 #include "utils.h"
 #include "list.h"
 
-//int node_id;
-//int num_nodes;
-//int num_workers;
+int node_id = 0;
+int num_nodes = 1;
 int num_devices = 1;
 ncclUniqueId nccl_id;
 
-static cudaStream_t memory_stream[MAX_NDEV];
-static ncclComm_t nccl_comm[MAX_NDEV];
-static list_t memory_list[NUM_OBJECT_TYPE];
+cudaStream_t memory_stream[MAX_NDEV];
+ncclComm_t nccl_comm[MAX_NDEV];
+list_t memory_list[NUM_OBJECT_TYPE];
 
 static const size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 
@@ -55,7 +54,7 @@ int __init_object_manager()
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaStreamCreate(&memory_stream[dev]));
-    ncclCommInitRank(&nccl_comm[dev], 1 * num_devices, nccl_id, 0 * num_devices + dev);
+    ncclCommInitRank(&nccl_comm[dev], num_nodes * num_devices, nccl_id, node_id * num_devices + dev);
   }
 
   ncclGroupEnd();
@@ -120,6 +119,7 @@ int create_buffer_data(
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -152,6 +152,7 @@ int create_buffer_data_gradient(
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA_GRADIENT;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -187,6 +188,7 @@ int create_buffer_weight(
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -219,6 +221,7 @@ int create_buffer_weight_gradient(
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT_GRADIENT;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -255,6 +258,7 @@ int create_buffer_bn_param(
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = BN_PARAM;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -290,6 +294,7 @@ int create_buffer_bn_param_gradient(
 
   (*mem)->data_type = data_type;
   (*mem)->obj_type = BN_PARAM_GRADIENT;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -316,6 +321,7 @@ int create_buffer_work_space(gpu_mem *mem, size_t size_in_bytes)
 
   (*mem)->data_type = 0;
   (*mem)->obj_type = WORK_SPACE;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -330,6 +336,7 @@ int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes)
 
   (*mem)->data_type = 0;
   (*mem)->obj_type = RESERVE_SPACE;
+  (*mem)->allocated = false;
 
   assign_flags_from_object_type(*mem);
 
@@ -384,6 +391,7 @@ int create_4d_tensor(
 
     mem->size_in_bytes[dev] = size_of_cudnn_data_type[data_type] * n_dev * c * h * w;
     mem->dev_ptr[dev] = NULL;
+    mem->allocated = false;
   }
 
   list_push_back(&memory_list[mem->obj_type], &mem->iterator);
@@ -416,7 +424,10 @@ int create_4d_weight(
           data_type, k, c, h, w));
 
     mem->size_in_bytes[dev] = size_in_bytes;
-    mem->dev_ptr[dev] = NULL;
+
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaMalloc(&mem->dev_ptr[dev], size_in_bytes));
+    mem->allocated = true;
   }
 
   list_push_back(&memory_list[mem->obj_type], &mem->iterator);
@@ -435,6 +446,7 @@ int create_rawspace(gpu_mem mem, size_t size_in_bytes)
     mem->tensor_desc[dev] = NULL;
     mem->size_in_bytes[dev] = size_in_bytes;
     mem->dev_ptr[dev] = NULL;
+    mem->allocated = false;
   }
 
   list_push_back(&memory_list[mem->obj_type], &mem->iterator);
@@ -508,27 +520,27 @@ void assign_flags_from_object_type(gpu_mem mem)
 
 int alloc_buffer(gpu_mem mem)
 {
-  for (int dev = 0; dev < num_devices; dev++) {
-    if (mem->dev_ptr[dev]) return -1;
-  }
+  if (mem->allocated) return -1;
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
 
+  mem->allocated = true;
+
   return 0;
 }
 
 int share_buffer(gpu_mem dst, gpu_mem src)
 {
-  for (int dev = 0; dev < num_devices; dev++) {
-    if (dst->dev_ptr[dev] || !src->dev_ptr[dev]) return -1;
-  }
+  if (dst->allocated || !src->allocated) return -1;
 
   for (int dev = 0; dev < num_devices; dev++) {
     dst->dev_ptr[dev] = src->dev_ptr[dev];
   }
+
+  dst->allocated = true;
 
   return 0;
 }
@@ -560,6 +572,8 @@ int alloc_work_space()
     for (int dev = 0; dev < num_devices; dev++) {
       mem->dev_ptr[dev] = dev_ptr[dev];
     }
+
+    mem->allocated = true;
   }
 
   return 0;
@@ -567,7 +581,7 @@ int alloc_work_space()
 
 int alloc_reserve_space()
 {
-  list_t *l = &memory_list[WORK_SPACE];
+  list_t *l = &memory_list[RESERVE_SPACE];
 
   list_iter(l, it) {
     gpu_mem mem = list_data(struct _gpu_memory_object, it);
@@ -576,6 +590,8 @@ int alloc_reserve_space()
       chkCUDA(cudaSetDevice(dev));
       chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
     }
+
+    mem->allocated = true;
   }
 
   return 0;
@@ -589,13 +605,11 @@ int write_buffer(const gpu_mem dst, const void *src, bool synch)
 {
   const char *host = (const char *)src;
 
+  if (!dst->allocated) return -1;
+
   if (dst->distributed) {
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
-
-      printf("[write_buffer] dst: %p, src: %p, size: %d, stream: %d (tensor)\n",
-          dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
-          memory_stream[dev]);
 
       chkCUDA(cudaMemcpyAsync(
             dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
@@ -615,10 +629,6 @@ int write_buffer(const gpu_mem dst, const void *src, bool synch)
   else if (dst->consistent) {
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
-
-      printf("[write_buffer] dst: %p, src: %p, size: %d, stream: %d (weight)\n",
-          dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
-          memory_stream[dev]);
 
       chkCUDA(cudaMemcpyAsync(
             dst->dev_ptr[dev], host, dst->size_in_bytes[dev],
@@ -641,8 +651,12 @@ int read_buffer(void *dst, const gpu_mem src, bool synch)
 {
   char *host = (char *)dst;
 
+  if (!src->allocated) return -1;
+
   if (src->distributed) {
     for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+
       chkCUDA(cudaMemcpyAsync(
             host, src->dev_ptr[dev], src->size_in_bytes[dev],
             cudaMemcpyDeviceToHost, memory_stream[dev]));
@@ -660,6 +674,8 @@ int read_buffer(void *dst, const gpu_mem src, bool synch)
   }
   else if (src->consistent) {
     for (int dev = 0; dev < 1; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+
       chkCUDA(cudaMemcpyAsync(
             host, src->dev_ptr[dev], src->size_in_bytes[dev],
             cudaMemcpyDeviceToHost, memory_stream[dev]));
@@ -681,6 +697,8 @@ static bool is_mem_equivalent(const gpu_mem a, const gpu_mem b);
 
 int copy_buffer(const gpu_mem dst, const gpu_mem src, bool synch)
 {
+  if (!dst->allocated || !src->allocated) return -1;
+
   if (!is_mem_equivalent(dst, src)) return -1;
 
   if (src->distributed) {
@@ -730,6 +748,8 @@ bool is_mem_equivalent(const gpu_mem a, const gpu_mem b)
 
 int all_reduce_buffer(const gpu_mem mem, bool synch)
 {
+  if (!mem->allocated) return -1;
+
   ncclGroupStart();
 
   for (int dev = 0; dev < num_devices; dev++) {

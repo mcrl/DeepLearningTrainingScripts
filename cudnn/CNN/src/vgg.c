@@ -293,11 +293,9 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   __init_stream_executer();
   __init_object_manager();
 
-  printf("init layers\n");
   vgg_init(params.batch_size);
-  printf("connect layers\n");
   vgg_connect();
-  printf("alloc workspace\n");
+
   alloc_work_space();
 
   int num_batches = num_train_image / params.batch_size;
@@ -310,7 +308,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
   INITIALIZE_RAND(param_in, sz / sizeof(float));
 
-  printf("init params\n");
   vgg_init_param(param_in);
 
   struct timespec st;
@@ -319,8 +316,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   struct timespec ed_f;
 
   int first = 1;
-
-  printf("timer start\n");
 
   clock_gettime(CLOCK_MONOTONIC, &st);
 
@@ -353,7 +348,7 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
       vgg_backward();
 
       if (first) {
-        cudaDeviceSynchronize(); // FIXME
+        synch_device();
         clock_gettime(CLOCK_MONOTONIC, &ed_f);
 #ifdef TIME_LAYER
         vgg_clear_time();
@@ -363,7 +358,7 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     }
   }
 
-  cudaDeviceSynchronize(); // FIXME
+  synch_device();
   clock_gettime(CLOCK_MONOTONIC, &ed);
 
   float training_time = diff_timespec_ms(st, ed);
