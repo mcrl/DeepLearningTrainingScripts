@@ -8,9 +8,9 @@
 
 ## CNN Models
 * VGG
-* Inception v4
 * ResNet
 * DenseNet
+* Inception
 
 ## RNN Models
 TODO
