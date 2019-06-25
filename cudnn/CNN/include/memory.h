@@ -89,13 +89,23 @@ int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes);
 
 int destroy_buffer(gpu_mem mem);
 
+////////////////////////////////////////////////////////////
+// Device Memory Management API
+////////////////////////////////////////////////////////////
+
 int alloc_buffer(gpu_mem mem);
+
+int free_buffer(gpu_mem mem);
 
 int share_buffer(gpu_mem dst, gpu_mem src);
 
 int alloc_work_space(void);
 
+int free_work_space(void);
+
 int alloc_reserve_space(void);
+
+int free_reserve_space(void);
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API

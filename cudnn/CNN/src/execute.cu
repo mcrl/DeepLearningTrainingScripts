@@ -137,7 +137,7 @@ int execute_act_fwd(
 /* Batch Normalization */
 int execute_bn_bwd(
     cudnnBatchNormMode_t mode,
-    double eaf, double eps,
+    double eps,
     gpu_mem x, gpu_mem dy, gpu_mem dx,
     gpu_mem w, gpu_mem dw, gpu_mem db,
     gpu_mem s_mean, gpu_mem s_var)

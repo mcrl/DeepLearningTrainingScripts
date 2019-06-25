@@ -518,6 +518,10 @@ void assign_flags_from_object_type(gpu_mem mem)
   }
 }
 
+////////////////////////////////////////////////////////////
+// Device Memory Management API
+////////////////////////////////////////////////////////////
+
 int alloc_buffer(gpu_mem mem)
 {
   if (mem->allocated) return -1;
@@ -528,6 +532,21 @@ int alloc_buffer(gpu_mem mem)
   }
 
   mem->allocated = true;
+
+  return 0;
+}
+
+int free_buffer(gpu_mem mem)
+{
+  if (!mem->allocated) return -1;
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaFree(&mem->dev_ptr[dev]));
+    mem->dev_ptr[dev] = NULL;
+  }
+
+  mem->allocated = false;
 
   return 0;
 }
@@ -553,6 +572,8 @@ int alloc_work_space()
 
   list_iter(l, it) {
     gpu_mem mem = list_data(struct _gpu_memory_object, it);
+
+    if (mem->allocated) return -1;
 
     if (max_size_in_bytes < mem->size_in_bytes[0]) {
       max_size_in_bytes = mem->size_in_bytes[0];
@@ -586,12 +607,35 @@ int alloc_reserve_space()
   list_iter(l, it) {
     gpu_mem mem = list_data(struct _gpu_memory_object, it);
 
+    if (mem->allocated) return -1;
+
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
       chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
     }
 
     mem->allocated = true;
+  }
+
+  return 0;
+}
+
+int free_reserve_space()
+{
+  list_t *l = &memory_list[RESERVE_SPACE];
+
+  list_iter(l, it) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, it);
+
+    if (!mem->allocated) return -1;
+
+    for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+      chkCUDA(cudaFree(&mem->dev_ptr[dev]));
+      mem->dev_ptr[dev] = NULL;
+    }
+
+    mem->allocated = false;
   }
 
   return 0;

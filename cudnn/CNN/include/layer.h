@@ -27,64 +27,70 @@ do {\
 } while (0)
 
 //VGG CONNECTION
-#define CONNECT_INPUT(in) \
-do {\
-  assert(!(in).output->allocated);\
-  assert(!(in).d_output->allocated);\
-  alloc_buffer((in).output);\
-  alloc_buffer((in).d_output);\
-} while (0)
-
 #define CONNECT(up, down) \
 do {\
-  assert((up).output->allocated);\
-  assert((up).d_output->allocated);\
-  assert(!(down).input->allocated);\
-  assert(!(down).d_input->allocated);\
-  assert(!(down).output->allocated);\
-  assert(!(down).d_output->allocated);\
   share_buffer((down).input, (up).output);\
   share_buffer((down).d_input, (up).d_output);\
   alloc_buffer((down).output);\
   alloc_buffer((down).d_output);\
 } while (0)
 
-#define CONNECT_BIAS(up, bias, down) \
+#define CONNECT_WITH_INPUT(in, down) \
 do {\
-  assert((up).output->allocated);\
-  assert((up).d_output->allocated);\
-  assert(!(bias).output->allocated);\
-  assert(!(bias).d_output->allocated);\
+  alloc_buffer((in).output);\
+  alloc_buffer((in).d_output);\
+  share_buffer((down).input, (in).output);\
+  share_buffer((down).d_input, (in).d_output);\
+  alloc_buffer((down).output);\
+  alloc_buffer((down).d_output);\
+} while (0)
+
+#define CONNECT_WITH_BIAS(up, bias, down) \
+do {\
   share_buffer((bias).output, (up).output);\
   share_buffer((bias).d_output, (up).d_output);\
-  CONNECT(bias, down);\
+  share_buffer((down).input, (bias).output);\
+  share_buffer((down).d_input, (bias).d_output);\
+  alloc_buffer((down).output);\
+  alloc_buffer((down).d_output);\
 } while (0)
 
 //RESNET CONNECTION
-#define CONNECT_DIAMOND_RES(l_branch, l_elt, l_up, l_down) \
+#define CONNECT_TO_BRANCH(up, branch) \
 do {\
-  (l_elt).input1 = (l_branch).input;\
-  (l_elt).input2 = (l_down).output;\
-  (l_up).input = (l_branch).input;\
-  (l_branch).d_output[0] = (l_elt).d_output;\
-  (l_branch).d_output[1] = (l_up).d_input;\
-  (l_down).d_output = (l_elt).d_output;\
+  share_buffer((branch).input, (up).output);\
+  share_buffer((branch).d_input, (up).d_output);\
+  for (int j = 0; j < (branch).fan_out; j++) {\
+    alloc_buffer((branch).d_output[j]);\
+  }\
 } while (0)
 
-#define CONNECT_BRANCH_RES(l_branch, l_down1, l_down2) \
+#define CONNECT_FROM_BRANCH(branch, down, j) \
 do {\
-  (l_down1).input = (l_branch).input;\
-  (l_down2).input = (l_branch).input;\
-  (l_branch).d_output[0] = (l_down1).d_input;\
-  (l_branch).d_output[1] = (l_down2).d_input;\
+  share_buffer((down).input, (branch).input);\
+  share_buffer((down).d_input, (branch).d_output[j]);\
+  alloc_buffer((down).output);\
+  alloc_buffer((down).d_output);\
 } while (0)
 
-#define CONNECT_ELT(l_up1, l_up2, l_elt) \
+#define CONNECT_TO_ELT(up, elt, j) \
 do {\
-  (l_elt).input1 = (l_up1).output;\
-  (l_elt).input2 = (l_up2).output;\
-  (l_up1).d_output = (l_elt).d_output;\
-  (l_up2).d_output = (l_elt).d_output;\
+  share_buffer((elt).input[j], (up).output);\
+  if ((j) == 0) {\
+    alloc_buffer((elt).output);\
+    share_buffer((elt).d_output, (up).d_output);\
+  }\
+  else {\
+    free_buffer((up).d_output);\
+    share_buffer((up).d_output, (elt).d_output);\
+  }\
+} while (0)
+
+#define CONNECT_FROM_BRANCH_TO_ELT(branch, elt) \
+do {\
+  share_buffer((elt).input[0], (branch).input);\
+  alloc_buffer((elt).output);\
+  share_buffer((elt).d_output, (branch).d_output[0]);\
 } while (0)
 
 //DENSENET CONNECTION
@@ -119,7 +125,7 @@ do {\
   size_t csz = (l)->filter_height * (l)->filter_width * (l)->input_channel * (l)->output_channel;\
   INITIALIZE_RAND_NORM_SCALE(param, csz, sqrt(2 / (n_out)));\
   param += set_conv_filter(l, param);\
-} while (0) 
+} while (0)
 
 #define INIT_FC(l) \
 do {\
@@ -144,7 +150,7 @@ do {\
   int cnt = (l)->channel;\
   INITIALIZE_CONST(param, cnt, 1.0);\
   INITIALIZE_CONST(param + cnt, cnt, 0.0);\
-  param += set_bn_vars(l, param);\
+  param += set_bn_param(l, param);\
 } while (0) 
 
 #define INIT_BIAS(l) \
@@ -173,7 +179,7 @@ do { param += set_conv_filter(l, param); } while (0)
 do { param += set_fc_weight(l, param); } while (0)
 
 #define LOAD_BN(l) \
-do { param += set_bn_vars(l, param); } while (0) 
+do { param += set_bn_param(l, param); } while (0) 
 
 #define LOAD_BIAS(l) \
 do { param += set_bias(l, param); } while (0)
@@ -185,7 +191,7 @@ do { param += get_conv_filter(l, param); } while (0)
 do { param += get_fc_weight(l, param); } while (0)
 
 #define GET_BN(l) \
-do { param += get_bn_vars(l, param); } while (0)
+do { param += get_bn_param(l, param); } while (0)
 
 #define GET_BIAS(l) \
 do { param += get_bias(l, param); } while (0)
@@ -248,7 +254,8 @@ typedef struct bn_layer_s {
 
   cudnnBatchNormMode_t mode;
 
-  double eaf, eps;
+  int nth;
+  double eps;
 
   gpu_mem input, d_input;
   gpu_mem output, d_output;
@@ -422,7 +429,7 @@ void init_fc_layer(
 
 void init_bn_layer(
     bn_layer *l, const char *name,
-    int batch_size, int channel, int height, int width, int nth);
+    int batch_size, int channel, int height, int width);
 
 void init_act_layer(
     act_layer *l, const char *name,

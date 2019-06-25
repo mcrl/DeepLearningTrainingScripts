@@ -14,7 +14,7 @@
 
 void init_bn_layer(
     bn_layer *l, const char *name,
-    int batch_size, int channel, int height, int width, int nth)
+    int batch_size, int channel, int height, int width)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
@@ -28,7 +28,7 @@ void init_bn_layer(
 
   l->mode = CUDNN_BATCHNORM_SPATIAL;
 
-  l->eaf = 1.0 / (1.0 + nth);
+  l->nth = 0;
   l->eps = CUDNN_BN_MIN_EPSILON;
 
   l->input = NULL;
@@ -110,7 +110,7 @@ void train_fwd_bn_layer(bn_layer *l)
 {
   START_CNN_TIMER(fwd_t);
   execute_bn_fwd(
-      l->mode, l->eaf, l->eps, l->input, l->output, l->scale, l->bias,
+      l->mode, 1.0 / (1.0 + l->nth++), l->eps, l->input, l->output, l->scale, l->bias,
       l->running_mean, l->running_var, l->save_mean, l->save_var);
   STOP_CNN_TIMER(fwd_t);
 }
@@ -119,7 +119,7 @@ void train_bwd_bn_layer(bn_layer *l)
 {
   START_CNN_TIMER(bwd_t);
   execute_bn_bwd(
-      l->mode, l->eaf, l->eps, l->input, l->d_output, l->d_input,
+      l->mode, l->eps, l->input, l->d_output, l->d_input,
       l->scale, l->d_scale, l->d_bias, l->save_mean, l->save_var);
   STOP_CNN_TIMER(bwd_t);
 
