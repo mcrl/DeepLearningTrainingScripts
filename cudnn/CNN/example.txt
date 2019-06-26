@@ -1,0 +1,4 @@
+CUDA_VISIBLE_DEVICES=0 ./vgg 16 1 data/imagenet_3200.data data/imagenet_3200.label model/vgg_16
+CUDA_VISIBLE_DEVICES=0,1 ./vgg 32 1 data/imagenet_3200.data data/imagenet_3200.label model/vgg_32
+CUDA_VISIBLE_DEVICES=0 ./resnet 16 1 data/imagenet_3200.data data/imagenet_3200.label model/resnet_16
+CUDA_VISIBLE_DEVICES=0,1 ./resnet 32 1 data/imagenet_3200.data data/imagenet_3200.label model/resnet_32
