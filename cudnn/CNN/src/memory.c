@@ -539,7 +539,7 @@ int free_buffer(gpu_mem mem)
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaFree(&mem->dev_ptr[dev]));
+    chkCUDA(cudaFree(mem->dev_ptr[dev]));
     mem->dev_ptr[dev] = NULL;
   }
 
