@@ -121,10 +121,20 @@ void resnet_init(int batch_size)
 
   for (int i = 0; i < B0; i++) {
     sprintf(name, "branch2[%d]", i);
-    init_branch_layer(&net.branch2[i], name, batch_size, 2, 64, 56, 56);
+    if (i == 0) {
+      init_branch_layer(&net.branch2[i], name, batch_size, 2, 64, 56, 56);
+    }
+    else {
+      init_branch_layer(&net.branch2[i], name, batch_size, 2, 256, 56, 56);
+    }
 
     sprintf(name, "conv2[%d][0]", i);
-    init_conv_layer(&net.conv2[i][0], name, batch_size, 1, 1, 0, 0, 1, 1, 64, 64, 56, 56);
+    if (i == 0) {
+      init_conv_layer(&net.conv2[i][0], name, batch_size, 1, 1, 0, 0, 1, 1, 64, 64, 56, 56);
+    }
+    else {
+      init_conv_layer(&net.conv2[i][0], name, batch_size, 1, 1, 0, 0, 1, 1, 256, 64, 56, 56);
+    }
 
     sprintf(name, "conv2_bn[%d][0]", i);
     init_bn_layer(&net.conv2_bn[i][0], name, batch_size, 64, 56, 56);
@@ -765,6 +775,8 @@ void resnet_connect()
   CONNECT(net.conv5_relu[B3-1][2], net.pool2);
   CONNECT(net.pool2, net.fc);
   CONNECT_WITH_BIAS(net.fc, net.bias, net.softmax);
+
+  alloc_work_space();
 }
 
 #define RESNET_LAYER(FUNC) \

@@ -44,7 +44,12 @@ void vgg_init(int batch_size)
 
   for (int i = 0; i < 2; i++) {
     sprintf(name, "conv[%02d]", i);
-    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 3, 64, 224, 224);
+    if (i == 0) {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 3, 64, 224, 224);
+    }
+    else {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 64, 64, 224, 224);
+    }
 
     sprintf(name, "bias[%02d]", i);
     init_bias_layer(&net.bias[i], name, batch_size, 64, 224, 224);
@@ -58,7 +63,12 @@ void vgg_init(int batch_size)
 
   for (int i = 2; i < 4; i++) {
     sprintf(name, "conv[%02d]", i);
-    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 64, 128, 112, 112);
+    if (i == 2) {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 64, 128, 112, 112);
+    }
+    else {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 128, 128, 112, 112);
+    }
 
     sprintf(name, "bias[%02d]", i);
     init_bias_layer(&net.bias[i], name, batch_size, 128, 112, 112);
@@ -72,7 +82,12 @@ void vgg_init(int batch_size)
 
   for (int i = 4; i < 7; i++) {
     sprintf(name, "conv[%02d]", i);
-    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 128, 256, 56, 56);
+    if (i == 4) {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 128, 256, 56, 56);
+    }
+    else {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 256, 256, 56, 56);
+    }
 
     sprintf(name, "bias[%02d]", i);
     init_bias_layer(&net.bias[i], name, batch_size, 256, 56, 56);
@@ -86,7 +101,12 @@ void vgg_init(int batch_size)
 
   for (int i = 7; i < 10; i++) {
     sprintf(name, "conv[%02d]", i);
-    init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 256, 512, 28, 28);
+    if (i == 7) {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 256, 512, 28, 28);
+    }
+    else {
+      init_conv_layer(&net.conv[i], name, batch_size, 3, 3, 1, 1, 1, 1, 512, 512, 28, 28);
+    }
 
     sprintf(name, "bias[%02d]", i);
     init_bias_layer(&net.bias[i], name, batch_size, 512, 28, 28);
@@ -114,7 +134,12 @@ void vgg_init(int batch_size)
 
   for (int i = 0; i < 2; i++) {
     sprintf(name, "fc[%d]", i);
-    init_fc_layer(&net.fc[i], name, batch_size, 512 * 7 * 7, 4096);
+    if (i == 0) {
+      init_fc_layer(&net.fc[i], name, batch_size, 512 * 7 * 7, 4096);
+    }
+    else {
+      init_fc_layer(&net.fc[i], name, batch_size, 4096, 4096);
+    }
 
     sprintf(name, "fc_bias[%d]", i);
     init_bias_layer(&net.fc_bias[i], name, batch_size, 4096, 1, 1);
@@ -254,6 +279,8 @@ void vgg_connect()
   }
 
   CONNECT_WITH_BIAS(net.fc[2], net.fc_bias[2], net.softmax);
+
+  alloc_work_space();
 }
 
 #define VGG_LAYER(FUNC) \
@@ -298,8 +325,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
   vgg_init(params.batch_size);
   vgg_connect();
-
-  alloc_work_space();
 
   int num_batches = num_train_image / params.batch_size;
   fprintf(stderr, "total iteration : %d\n", num_batches);
