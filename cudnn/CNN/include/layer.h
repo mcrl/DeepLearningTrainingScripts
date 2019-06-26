@@ -41,7 +41,7 @@ do {\
   alloc_buffer((down).d_output);\
 } while (0)
 
-#define CONNECT_WITH_INPUT(in, down) \
+#define CONNECT_FROM_INPUT(in, down) \
 do {\
   alloc_buffer((in).output);\
   alloc_buffer((in).d_output);\
@@ -100,14 +100,18 @@ do {\
 } while (0)
 
 //DENSENET CONNECTION
-#define CONNECT_DIAMOND_DENSE(l_branch, l_concat, l_up, l_down) \
+#define CONNECT_FROM_BRANCH_TO_CONCAT(branch, concat) \
 do {\
-  (l_concat).input[0] = (l_branch).input;\
-  (l_concat).input[1] = (l_down).output;\
-  (l_up).input = (l_branch).input;\
-  (l_branch).d_output[0] = (l_concat).d_input[0];\
-  (l_branch).d_output[1] = (l_up).d_input;\
-  (l_down).d_output = (l_concat).d_input[1];\
+  share_buffer((concat).input[0], (branch).input);\
+  share_buffer((concat).d_input[0], (branch).d_output[0]);\
+  alloc_buffer((concat).output);\
+  alloc_buffer((concat).d_output);\
+} while (0)
+
+#define CONNECT_TO_CONCAT(up, concat, j) \
+do {\
+  share_buffer((concat).input[j], (up).output);\
+  share_buffer((concat).d_input[j], (up).d_output);\
 } while (0)
 
 //INCEPTION CONNECTION

@@ -615,7 +615,7 @@ void resnet_backward()
 
 void resnet_connect()
 {
-  CONNECT_WITH_INPUT(net.input, net.conv1);
+  CONNECT_FROM_INPUT(net.input, net.conv1);
   CONNECT(net.conv1, net.conv1_bn);
   CONNECT(net.conv1_bn, net.conv1_relu);
   CONNECT(net.conv1_relu, net.pool1);

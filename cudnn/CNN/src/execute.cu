@@ -820,9 +820,9 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
 {
   assert(fan_in > 1);
   for (int i = 0; i < fan_in; i++) {
-    check_mem(x[i], DATA_GRADIENT);
+    check_mem(x[i], DATA);
   }
-  check_mem(y, DATA_GRADIENT);
+  check_mem(y, DATA);
 
   int block_size = 256;
 

@@ -254,7 +254,7 @@ void vgg_connect()
 {
   for (int i = 0, j = 0; i < 13; i++) {
     if (i == 0) {
-      CONNECT_WITH_INPUT(net.input, net.conv[i]);
+      CONNECT_FROM_INPUT(net.input, net.conv[i]);
     }
     else if (i == 2 || i == 4 || i == 7 || i == 10 || i == 13) {
       CONNECT(net.pool[j], net.conv[i]);
