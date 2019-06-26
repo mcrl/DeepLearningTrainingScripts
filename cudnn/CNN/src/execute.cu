@@ -25,10 +25,21 @@ static const float zero_float32 = 0.0;
 #define __1 ( (const void *)&one_float32 )
 #define __0 ( (const void *)&zero_float32 )
 
-static inline int distribute(int n, int dev)
-{
-  return (n / num_devices) + (dev < n % num_devices);
-}
+#define distribute(n, dev) ( ((n) / num_devices) + ((dev) < (n) % num_devices) )
+
+#define check_mem(mem, type) \
+do {\
+  assert(mem);\
+  assert((mem)->obj_type == (type));\
+  assert((mem)->allocated);\
+} while (0)
+
+#define check_mem2(mem, type1, type2) \
+do {\
+  assert(mem);\
+  assert((mem)->obj_type == (type1) || (mem)->obj_type == (type2));\
+  assert((mem)->allocated);\
+} while (0)
 
 ////////////////////////////////////////////////////////////
 // Executer Management API
@@ -84,10 +95,10 @@ int execute_act_bwd(
     cudnnActivationDescriptor_t actDesc,
     gpu_mem y, gpu_mem dy, gpu_mem x, gpu_mem dx)
 {
-  assert(y->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(x->obj_type == DATA);
-  assert(dx->obj_type == DATA_GRADIENT);
+  check_mem(y, DATA);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(x, DATA);
+  check_mem(dx, DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -114,8 +125,8 @@ int execute_act_fwd(
     cudnnActivationDescriptor_t actDesc,
     gpu_mem x, gpu_mem y)
 {
-  assert(x->obj_type == DATA);
-  assert(y->obj_type == DATA);
+  check_mem(x, DATA);
+  check_mem(y, DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -142,14 +153,14 @@ int execute_bn_bwd(
     gpu_mem w, gpu_mem dw, gpu_mem db,
     gpu_mem s_mean, gpu_mem s_var)
 {
-  assert(x->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dx->obj_type == DATA_GRADIENT);
-  assert(w->obj_type == BN_PARAM);
-  assert(dw->obj_type == BN_PARAM_GRADIENT);
-  assert(db->obj_type == BN_PARAM_GRADIENT);
-  assert(s_mean->obj_type == BN_PARAM);
-  assert(s_var->obj_type == BN_PARAM);
+  check_mem(x, DATA);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(dx, DATA_GRADIENT);
+  check_mem(w, BN_PARAM);
+  check_mem(dw, BN_PARAM_GRADIENT);
+  check_mem(db, BN_PARAM_GRADIENT);
+  check_mem(s_mean, BN_PARAM);
+  check_mem(s_var, BN_PARAM);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -186,14 +197,14 @@ int execute_bn_fwd(
     gpu_mem r_mean, gpu_mem r_var,
     gpu_mem s_mean, gpu_mem s_var)
 {
-  assert(x->obj_type == DATA);
-  assert(y->obj_type == DATA);
-  assert(w->obj_type == BN_PARAM);
-  assert(b->obj_type == BN_PARAM);
-  assert(r_mean->obj_type == BN_PARAM);
-  assert(r_var->obj_type == BN_PARAM);
-  assert(s_mean->obj_type == BN_PARAM);
-  assert(s_var->obj_type == BN_PARAM);
+  check_mem(x, DATA);
+  check_mem(y, DATA);
+  check_mem(w, BN_PARAM);
+  check_mem(b, BN_PARAM);
+  check_mem(r_mean, BN_PARAM);
+  check_mem(r_var, BN_PARAM);
+  check_mem(s_mean, BN_PARAM);
+  check_mem(s_var, BN_PARAM);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -224,8 +235,8 @@ int execute_bn_fwd(
 /* Bias */
 int execute_bias_bwd(gpu_mem dy, gpu_mem db)
 {
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(db->obj_type == WEIGHT_GRADIENT);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(db, WEIGHT_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -240,7 +251,7 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
           db->dev_ptr[dev]));
   }
 
-  if (1 * num_devices > 1) {
+  if (num_nodes * num_devices > 1) {
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
       chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
@@ -254,8 +265,8 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
 
 int execute_bias_fwd(gpu_mem b, gpu_mem y)
 {
-  assert(b->obj_type == WEIGHT);
-  assert(y->obj_type == DATA);
+  check_mem(b, WEIGHT);
+  check_mem(y, DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -280,9 +291,9 @@ int execute_branch_bwd(
 {
   assert(fan_out > 1);
   for (int i = 0; i < fan_out; i++) {
-    assert(dy[i]->obj_type == DATA_GRADIENT);
+    check_mem(dy[i], DATA_GRADIENT);
   }
-  assert(dx->obj_type == DATA_GRADIENT);
+  check_mem(dx, DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -322,10 +333,10 @@ int execute_conv_bwd_data(
     gpu_mem w, gpu_mem dy,
     gpu_mem dx, gpu_mem workSpace)
 {
-  assert(w->obj_type == WEIGHT);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dx->obj_type == DATA_GRADIENT);
-  assert(workSpace->obj_type == WORK_SPACE);
+  check_mem(w, WEIGHT);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(dx, DATA_GRADIENT);
+  check_mem(workSpace, WORK_SPACE);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -355,10 +366,10 @@ int execute_conv_bwd_filter(
     gpu_mem x, gpu_mem dy,
     gpu_mem dw, gpu_mem workSpace)
 {
-  assert(x->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dw->obj_type == WEIGHT_GRADIENT);
-  assert(workSpace->obj_type == WORK_SPACE);
+  check_mem(x, DATA);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(dw, WEIGHT_GRADIENT);
+  check_mem(workSpace, WORK_SPACE);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -379,10 +390,9 @@ int execute_conv_bwd_filter(
           dw->dev_ptr[dev]));
   }
 
-  if (1 * num_devices > 1) {
+  if (num_nodes * num_devices > 1) {
     for (int dev = 0; dev < num_devices; dev++) {
       chkCUDA(cudaSetDevice(dev));
-
       chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
     }
 
@@ -398,10 +408,10 @@ int execute_conv_fwd(
     gpu_mem x, gpu_mem w,
     gpu_mem y, gpu_mem workSpace)
 {
-  assert(x->obj_type == DATA);
-  assert(w->obj_type == WEIGHT);
-  assert(y->obj_type == DATA);
-  assert(workSpace->obj_type == WORK_SPACE);
+  check_mem(x, DATA);
+  check_mem(w, WEIGHT);
+  check_mem(y, DATA);
+  check_mem(workSpace, WORK_SPACE);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -430,10 +440,6 @@ int execute_get_conv_bwd_data_algo(
     gpu_mem w, gpu_mem dy, gpu_mem dx,
     cudnnConvolutionBwdDataAlgo_t *algo)
 {
-  assert(w->obj_type == WEIGHT);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dx->obj_type == DATA_GRADIENT);
-
   chkCUDNN(cudnnGetConvolutionBackwardDataAlgorithm(
         cudnn_handle[0],
         w->filter_desc,
@@ -453,10 +459,6 @@ int execute_get_conv_bwd_data_ws_size(
     gpu_mem w, gpu_mem dy, gpu_mem dx,
     size_t *ws_size)
 {
-  assert(w->obj_type == WEIGHT);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dx->obj_type == DATA_GRADIENT);
-
   chkCUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
         cudnn_handle[0],
         w->filter_desc,
@@ -474,10 +476,6 @@ int execute_get_conv_bwd_filter_algo(
     gpu_mem x, gpu_mem dy, gpu_mem dw,
     cudnnConvolutionBwdFilterAlgo_t *algo)
 {
-  assert(x->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dw->obj_type == WEIGHT_GRADIENT);
-
   chkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithm(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -497,10 +495,6 @@ int execute_get_conv_bwd_filter_ws_size(
     gpu_mem x, gpu_mem dy, gpu_mem dw,
     size_t *ws_size)
 {
-  assert(x->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dw->obj_type == WEIGHT_GRADIENT);
-
   chkCUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -518,10 +512,6 @@ int execute_get_conv_fwd_algo(
     gpu_mem x, gpu_mem w, gpu_mem y,
     cudnnConvolutionFwdAlgo_t *algo)
 {
-  assert(x->obj_type == DATA);
-  assert(w->obj_type == WEIGHT);
-  assert(y->obj_type == DATA);
-
   chkCUDNN(cudnnGetConvolutionForwardAlgorithm(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -541,10 +531,6 @@ int execute_get_conv_fwd_ws_size(
     gpu_mem x, gpu_mem w, gpu_mem y,
     size_t *ws_size)
 {
-  assert(x->obj_type == DATA);
-  assert(w->obj_type == WEIGHT);
-  assert(y->obj_type == DATA);
-
   chkCUDNN(cudnnGetConvolutionForwardWorkspaceSize(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -562,6 +548,10 @@ int execute_elt(
     cudnnOpTensorDescriptor_t opDesc,
     gpu_mem x1, gpu_mem x2, gpu_mem y)
 {
+  check_mem2(x1, DATA, DATA_GRADIENT);
+  check_mem2(x2, DATA, DATA_GRADIENT);
+  check_mem2(y, DATA, DATA_GRADIENT);
+
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
 
@@ -587,10 +577,10 @@ int execute_pool_bwd(
     cudnnPoolingDescriptor_t poolDesc,
     gpu_mem y, gpu_mem dy, gpu_mem x, gpu_mem dx)
 {
-  assert(y->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(x->obj_type == DATA);
-  assert(dx->obj_type == DATA_GRADIENT);
+  check_mem(y, DATA);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(x, DATA);
+  check_mem(dx, DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -617,8 +607,8 @@ int execute_pool_fwd(
     cudnnPoolingDescriptor_t poolDesc,
     gpu_mem x, gpu_mem y)
 {
-  assert(x->obj_type == DATA);
-  assert(y->obj_type == DATA);
+  check_mem(x, DATA);
+  check_mem(y, DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -643,9 +633,9 @@ int execute_softmax_bwd(
     cudnnSoftmaxMode_t mode,
     gpu_mem y, gpu_mem dy, gpu_mem dx)
 {
-  assert(y->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
-  assert(dx->obj_type == DATA_GRADIENT);
+  check_mem(y, DATA);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(dx, DATA_GRADIENT);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -672,8 +662,8 @@ int execute_softmax_fwd(
     cudnnSoftmaxMode_t mode,
     gpu_mem x, gpu_mem y)
 {
-  assert(x->obj_type == DATA);
-  assert(y->obj_type == DATA);
+  check_mem(x, DATA);
+  check_mem(y, DATA);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -701,8 +691,8 @@ int execute_softmax_fwd(
 int execute_apply_gradient(
     const float learning_rate, gpu_mem dw, gpu_mem w)
 {
-  assert(dw->obj_type == WEIGHT_GRADIENT || dw->obj_type == BN_PARAM_GRADIENT);
-  assert(w->obj_type == WEIGHT || w->obj_type == BN_PARAM);
+  check_mem2(dw, WEIGHT_GRADIENT, BN_PARAM_GRADIENT);
+  check_mem2(w, WEIGHT, BN_PARAM);
 
   float alpha = -learning_rate;
 
@@ -806,9 +796,9 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
 {
   assert(fan_in > 1);
   for (int i = 0; i < fan_in; i++) {
-    assert(dx[i]->obj_type == DATA_GRADIENT);
+    check_mem(dx[i], DATA_GRADIENT);
   }
-  assert(dy->obj_type == DATA_GRADIENT);
+  check_mem(dy, DATA_GRADIENT);
 
   int block_size = 256;
 
@@ -830,9 +820,9 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
 {
   assert(fan_in > 1);
   for (int i = 0; i < fan_in; i++) {
-    assert(x[i]->obj_type == DATA_GRADIENT);
+    check_mem(x[i], DATA_GRADIENT);
   }
-  assert(y->obj_type == DATA_GRADIENT);
+  check_mem(y, DATA_GRADIENT);
 
   int block_size = 256;
 
@@ -853,8 +843,8 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
 /* Softmax */
 int execute_set_label(gpu_mem l, gpu_mem dy)
 {
-  assert(l->obj_type == DATA);
-  assert(dy->obj_type == DATA_GRADIENT);
+  check_mem(l, DATA);
+  check_mem(dy, DATA_GRADIENT);
 
   int block_size = 256;
 

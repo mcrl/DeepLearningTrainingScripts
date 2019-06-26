@@ -53,6 +53,8 @@ typedef struct _gpu_memory_object *gpu_mem;
 
 size_t data_type_size(gpu_mem mem);
 
+size_t logical_buffer_size(gpu_mem mem);
+
 ////////////////////////////////////////////////////////////
 // Memory Object Management API
 ////////////////////////////////////////////////////////////
@@ -60,8 +62,6 @@ size_t data_type_size(gpu_mem mem);
 int __init_object_manager(void);
 
 int __finalize_object_manager(void);
-
-size_t get_buffer_size(gpu_mem mem);
 
 int create_buffer_data(
     gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...);

@@ -16,12 +16,18 @@
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+#if USE_LOG
+#define LOG(msg) fprintf(stderr, "[%s:%d] %s() %s\n", __FILE__, __LINE__, __func__, #msg)
+#else
+#define LOG(msg)
+#endif
+
 #define chkCUDA(exp) \
   do {\
     cudaError_t status = (exp);\
     if (status != cudaSuccess) {\
-      fprintf(stderr, "[%s] Error on line %d: %s\n",\
-          __FILE__, __LINE__, cudaGetErrorString(status));\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d) %s\n",\
+          __FILE__, __LINE__, (int)status, cudaGetErrorString(status));\
       exit(EXIT_FAILURE);\
     }\
   } while (0)
@@ -30,8 +36,8 @@
   do {\
     cudnnStatus_t status = (exp);\
     if (status != CUDNN_STATUS_SUCCESS) {\
-      fprintf(stderr, "[%s] Error on line %d: %s\n",\
-          __FILE__, __LINE__, cudnnGetErrorString(status));\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d) %s\n",\
+          __FILE__, __LINE__, (int)status, cudnnGetErrorString(status));\
       exit(EXIT_FAILURE);\
     }\
   } while (0)
@@ -40,8 +46,8 @@
   do {\
     cublasStatus_t status = (exp);\
     if (status != CUBLAS_STATUS_SUCCESS) {\
-      fprintf(stderr, "[%s] Error on line %d: %d\n",\
-          __FILE__, __LINE__, (int)status);\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d) %s\n",\
+          __FILE__, __LINE__, (int)status, cublasGetErrorString(status));\
       exit(EXIT_FAILURE);\
     }\
   } while (0)
@@ -114,6 +120,23 @@ static inline void INITIALIZE_RAND_NORM_SCALE(float *ptr, size_t len, float scal
 {
   for (int i = 0; i < len; i++) {
     ptr[i] = gauss() * scale; 
+  }
+}
+
+static const char *cublasGetErrorString(cublasStatus_t status)
+{
+  switch (status) {
+    case CUBLAS_STATUS_SUCCESS: return "CUBLAS_STATUS_SUCCESS";
+    case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
+    case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
+    case CUBLAS_STATUS_INVALID_VALUE: return "CUBLAS_STATUS_INVALID_VALUE";
+    case CUBLAS_STATUS_ARCH_MISMATCH: return "CUBLAS_STATUS_ARCH_MISMATCH";
+    case CUBLAS_STATUS_MAPPING_ERROR: return "CUBLAS_STATUS_MAPPING_ERROR";
+    case CUBLAS_STATUS_EXECUTION_FAILED: return "CUBLAS_STATUS_EXECUTION_FAILED";
+    case CUBLAS_STATUS_INTERNAL_ERROR: return "CUBLAS_STATUS_INTERNAL_ERROR";
+    case CUBLAS_STATUS_NOT_SUPPORTED: return "CUBLAS_STATUS_NOT_SUPPORTED";
+    case CUBLAS_STATUS_LICENSE_ERROR: return "CUBLAS_STATUS_LICENSE_ERROR";
+    default: return "";
   }
 }
 

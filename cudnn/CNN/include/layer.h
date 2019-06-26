@@ -8,9 +8,10 @@
 
 #include "execute.h"
 
-#define TIME_LAYER
+//#define TIME_LAYER
 //#define PRINT_LOSS
 
+#ifdef TIME_LAYER
 #define START_CNN_TIMER(name) \
 static struct timespec st_##name;\
 do {\
@@ -25,6 +26,11 @@ do {\
   clock_gettime(CLOCK_MONOTONIC, &ed_##name);\
   l->name += diff_timespec_ms(st_##name, ed_##name);\
 } while (0)
+#else
+#define START_CNN_TIMER(name)
+#define STOP_CNN_TIMER(name)
+#endif // TIME_LAYER
+
 
 //VGG CONNECTION
 #define CONNECT(up, down) \

@@ -91,7 +91,8 @@ void set_label(softmax_layer *l, int *label_in)
 
 float get_loss(softmax_layer *l, int *label_in)
 {
-  float *result = (float *)malloc(sizeof(float) * l->out * l->batch_size);
+  size_t size = logical_buffer_size(l->output);
+  float *result = (float *)malloc(size);
   read_buffer(result, l->output, true);
 
   float sum = 0;

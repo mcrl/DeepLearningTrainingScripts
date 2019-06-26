@@ -20,10 +20,7 @@ list_t memory_list[NUM_OBJECT_TYPE];
 
 static const size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 
-static inline int distribute(int n, int dev)
-{
-  return (n / num_devices) + (dev < n % num_devices);
-}
+#define distribute(n, dev) ( ((n) / num_devices) + ((dev) < (n) % num_devices) )
 
 ////////////////////////////////////////////////////////////
 // Abstract Device Memory Object
@@ -32,6 +29,19 @@ static inline int distribute(int n, int dev)
 size_t data_type_size(gpu_mem mem)
 {
   return size_of_cudnn_data_type[(int)mem->data_type];
+}
+
+size_t logical_buffer_size(gpu_mem mem)
+{
+  if (mem->distributed) {
+    size_t total_size = 0;
+    for (int dev = 0; dev < num_devices; dev++) {
+      total_size += mem->size_in_bytes[dev];
+    }
+    return total_size;
+  }
+
+  return mem->size_in_bytes[0];
 }
 
 ////////////////////////////////////////////////////////////
@@ -81,19 +91,6 @@ int __finalize_object_manager()
   }
 
   return 0;
-}
-
-size_t get_buffer_size(gpu_mem mem)
-{
-  if (mem->distributed) {
-    size_t total_size = 0;
-    for (int dev = 0; dev < num_devices; dev++) {
-      total_size += mem->size_in_bytes[dev];
-    }
-    return total_size;
-  }
-
-  return mem->size_in_bytes[0];
 }
 
 static void assign_flags_from_object_type(gpu_mem mem);
@@ -583,6 +580,7 @@ int alloc_work_space()
   void *dev_ptr[MAX_NDEV];
 
   for (int dev = 0; dev < num_devices; dev++) {
+    dev_ptr[dev] = NULL;
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaMalloc(&dev_ptr[dev], max_size_in_bytes));
   }
