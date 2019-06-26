@@ -58,7 +58,7 @@ void init_bn_layer(
       &l->input, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer_data(
+  create_buffer_data_gradient(
       &l->d_input, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
