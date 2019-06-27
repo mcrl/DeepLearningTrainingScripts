@@ -251,16 +251,14 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
           db->dev_ptr[dev]));
   }
 
-  if (num_nodes * num_devices > 1) {
-    for (int dev = 0; dev < num_devices; dev++) {
-      chkCUDA(cudaSetDevice(dev));
-      chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
-    }
+  if (num_nodes * num_devices == 1) return 0;
 
-    all_reduce_buffer(db, false);
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
   }
 
-  return 0;
+  return all_reduce_buffer(db, false);
 }
 
 int execute_bias_fwd(gpu_mem b, gpu_mem y)
@@ -390,16 +388,14 @@ int execute_conv_bwd_filter(
           dw->dev_ptr[dev]));
   }
 
-  if (num_nodes * num_devices > 1) {
-    for (int dev = 0; dev < num_devices; dev++) {
-      chkCUDA(cudaSetDevice(dev));
-      chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
-    }
+  if (num_nodes * num_devices == 1) return 0;
 
-    all_reduce_buffer(dw, false);
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
   }
 
-  return 0;
+  return all_reduce_buffer(dw, false);
 }
 
 int execute_conv_fwd(
@@ -739,16 +735,14 @@ int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw)
           (float *)dw->dev_ptr[dev], m));
   }
 
-  if (num_nodes * num_devices > 1) {
-    for (int dev = 0; dev < num_devices; dev++) {
-      chkCUDA(cudaSetDevice(dev));
-      chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
-    }
+  if (num_nodes * num_devices == 1) return 0;
 
-    all_reduce_buffer(dw, false);
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
   }
 
-  return 0;
+  return all_reduce_buffer(dw, false);
 }
 
 int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y)
