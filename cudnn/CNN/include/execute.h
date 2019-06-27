@@ -141,6 +141,13 @@ int execute_softmax_fwd(
 // cuBLAS based API
 ////////////////////////////////////////////////////////////
 
+/* Linear */
+int execute_linear_bwd_data(gpu_mem w, gpu_mem dy, gpu_mem dx);
+
+int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw);
+
+int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y);
+
 /* Update Weight */
 int execute_apply_gradient(
     const float learning_rate, gpu_mem dw, gpu_mem w);

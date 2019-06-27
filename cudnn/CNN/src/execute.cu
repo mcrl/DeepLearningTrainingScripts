@@ -22,8 +22,8 @@ cublasHandle_t cublas_handle[MAX_NDEV];
 static const float one_float32 = 1.0;
 static const float zero_float32 = 0.0;
 
-#define __1 ( (const void *)&one_float32 )
-#define __0 ( (const void *)&zero_float32 )
+#define __1 ( (const float *)&one_float32 )
+#define __0 ( (const float *)&zero_float32 )
 
 #define distribute(n, dev) ( ((n) / num_devices) + ((dev) < (n) % num_devices) )
 
@@ -686,6 +686,97 @@ int execute_softmax_fwd(
 ////////////////////////////////////////////////////////////
 // cuBLAS based API
 ////////////////////////////////////////////////////////////
+
+/* Linear */
+int execute_linear_bwd_data(gpu_mem w, gpu_mem dy, gpu_mem dx)
+{
+  check_mem(w, WEIGHT);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(dx, DATA_GRADIENT);
+
+  int m = dx->dim[1];
+  int n = dx->dim[0];
+  int k = dy->dim[1];
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    chkCUBLAS(cublasSgemm(
+          cublas_handle[dev],
+          CUBLAS_OP_N, CUBLAS_OP_N,
+          m, n, k,
+          __1,
+          (float *)w->dev_ptr[dev], m,
+          (float *)dy->dev_ptr[dev], k,
+          __0,
+          (float *)dx->dev_ptr[dev], m));
+  }
+
+  return 0;
+}
+
+int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw)
+{
+  check_mem(x, DATA);
+  check_mem(dy, DATA_GRADIENT);
+  check_mem(dw, WEIGHT_GRADIENT);
+
+  int m = x->dim[1];
+  int n = dy->dim[1];
+  int k = x->dim[0];
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    chkCUBLAS(cublasSgemm(
+          cublas_handle[dev],
+          CUBLAS_OP_N, CUBLAS_OP_T,
+          m, n, k,
+          __1,
+          (float *)x->dev_ptr[dev], m,
+          (float *)dy->dev_ptr[dev], n,
+          __0,
+          (float *)dw->dev_ptr[dev], m));
+  }
+
+  if (num_nodes * num_devices > 1) {
+    for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+      chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
+    }
+
+    all_reduce_buffer(dw, false);
+  }
+
+  return 0;
+}
+
+int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y)
+{
+  check_mem(x, DATA);
+  check_mem(w, WEIGHT);
+  check_mem(y, DATA);
+
+  int m = y->dim[1];
+  int n = x->dim[0];
+  int k = x->dim[1];
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    chkCUBLAS(cublasSgemm(
+          cublas_handle[dev],
+          CUBLAS_OP_T, CUBLAS_OP_N,
+          m, n, k,
+          __1,
+          (float *)w->dev_ptr[dev], k,
+          (float *)x->dev_ptr[dev], k,
+          __0,
+          (float *)y->dev_ptr[dev], m));
+  }
+
+  return 0;
+}
 
 /* Update Weight */
 int execute_apply_gradient(

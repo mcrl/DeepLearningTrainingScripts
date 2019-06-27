@@ -8,6 +8,7 @@
 
 #include "execute.h"
 
+//#define USE_CUDNN_FC
 //#define TIME_LAYER
 //#define PRINT_LOSS
 
@@ -202,17 +203,21 @@ typedef struct fc_layer_s {
   int batch_size;
   int in, out;
 
+#ifdef USE_CUDNN_FC
   cudnnConvolutionDescriptor_t conv_desc;
 
   cudnnConvolutionFwdAlgo_t fwd_algo;
   cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
   cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
+#endif
 
   gpu_mem input, d_input;
   gpu_mem output, d_output;
   gpu_mem weight, d_weight;
 
+#ifdef USE_CUDNN_FC
   gpu_mem ws_fwd, ws_bwd_data, ws_bwd_filter;
+#endif
 
   float fwd_t, bwd_data_t, bwd_weight_t, bwd_update_t;
 } fc_layer;

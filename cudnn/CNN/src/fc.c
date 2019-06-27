@@ -15,9 +15,11 @@
 void init_fc_layer(
     fc_layer *l, const char *name, int batch_size, int in, int out)
 {
+#ifdef USE_CUDNN_FC
   size_t ws_fwd_size;
   size_t ws_bwd_data_size;
   size_t ws_bwd_filter_size;
+#endif
 
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
@@ -37,12 +39,15 @@ void init_fc_layer(
   l->weight = NULL;
   l->d_weight = NULL;
 
+#ifdef USE_CUDNN_FC
   l->ws_fwd = NULL;
   l->ws_bwd_data = NULL;
   l->ws_bwd_filter = NULL;
+#endif
 
   clear_time_fc_layer(l);
 
+#ifdef USE_CUDNN_FC
   ////////////////////////////////////////////////////////////////
   // 2. Set Convolution Descriptor
   ////////////////////////////////////////////////////////////////
@@ -51,6 +56,7 @@ void init_fc_layer(
   chkCUDNN(cudnnSetConvolution2dDescriptor(
         l->conv_desc, 0, 0, 1, 1, 1, 1,
         CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+#endif
 
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors
@@ -76,6 +82,7 @@ void init_fc_layer(
   create_buffer_weight_gradient(
       &l->d_weight, CUDNN_DATA_FLOAT, 4, l->out, l->in, 1, 1);
 
+#ifdef USE_CUDNN_FC
   ////////////////////////////////////////////////////////////////
   // 5. Get Convolution Algorithm
   ////////////////////////////////////////////////////////////////
@@ -111,26 +118,39 @@ void init_fc_layer(
   create_buffer_work_space(&l->ws_bwd_data, ws_bwd_data_size);
 
   create_buffer_work_space(&l->ws_bwd_filter, ws_bwd_filter_size);
+#endif
 }
 
 void train_fwd_fc_layer(fc_layer *l)
 {
   START_CNN_TIMER(fwd_t);
+#ifdef USE_CUDNN_FC
   execute_conv_fwd(
       l->conv_desc, l->fwd_algo, l->input, l->weight, l->output, l->ws_fwd);
+#else
+  execute_linear_fwd(l->input, l->weight, l->output);
+#endif
   STOP_CNN_TIMER(fwd_t);
 }
 
 void train_bwd_fc_layer(fc_layer *l)
 {
   START_CNN_TIMER(bwd_data_t);
+#ifdef USE_CUDNN_FC
   execute_conv_bwd_data(
       l->conv_desc, l->bwd_data_algo, l->weight, l->d_output, l->d_input, l->ws_bwd_data);
+#else
+  execute_linear_bwd_data(l->weight, l->d_output, l->d_input);
+#endif
   STOP_CNN_TIMER(bwd_data_t);
 
   START_CNN_TIMER(bwd_weight_t);
+#ifdef USE_CUDNN_FC
   execute_conv_bwd_filter(
       l->conv_desc, l->bwd_filter_algo, l->input, l->d_output, l->d_weight, l->ws_bwd_filter);
+#else
+  execute_linear_bwd_weight(l->input, l->d_output, l->d_weight);
+#endif
   STOP_CNN_TIMER(bwd_weight_t);
 
   START_CNN_TIMER(bwd_update_t);
