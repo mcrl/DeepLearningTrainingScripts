@@ -861,7 +861,7 @@ __global__ void cuda_concat4(
     float *in1, float *in2, float *in3, float *in4, float *out)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int channel_out = channel1 + channel2 + channel3;
+  int channel_out = channel1 + channel2 + channel3 + channel4;
 
   if (tid >= batch_size * channel_out * height * width) return;
 
@@ -906,7 +906,7 @@ __global__ void cuda_split4(
     float *out, float *in1, float *in2, float *in3, float *in4)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int channel_out = channel1 + channel2 + channel3;
+  int channel_out = channel1 + channel2 + channel3 + channel4;
 
   if (tid >= batch_size * channel_out * height * width) return;
 
@@ -942,6 +942,124 @@ __global__ void cuda_split4(
       (c - channel1 - channel2 - channel3) * width * height +
       h * width + w;
     in4[in_idx] = out[tid];
+  }
+}
+
+__global__ void cuda_concat6(
+    int batch_size, int height, int width,
+    int channel1, int channel2, int channel3, int channel4, int channel5, int channel6,
+    float *in1, float *in2, float *in3, float *in4, float *in5, float *in6, float *out)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int channel_out = channel1 + channel2 + channel3 + channel4 + channel5 + channel6;
+
+  if (tid >= batch_size * channel_out * height * width) return;
+
+  int w = tid % width;
+  int h = (tid / width) % height;
+  int c = (tid / height / width) % channel_out;
+  int n = (tid / height / width / channel_out) % batch_size;
+
+  if (c < channel1) {
+    int in_idx =
+      n * channel1 * width * height +
+      c * width * height +
+      h * width + w;
+    out[tid] = in1[in_idx];
+  }
+  else if (c - channel1 < channel2) {
+    int in_idx =
+      n * channel2 * width * height +
+      (c - channel1) * width * height +
+      h * width + w;
+    out[tid] = in2[in_idx];
+  }
+  else if (c - channel1 - channel2 < channel3) {
+    int in_idx =
+      n * channel3 * width * height +
+      (c - channel1 - channel2) * width * height +
+      h * width + w;
+    out[tid] = in3[in_idx];
+  }
+  else if (c - channel1 - channel2 - channel3 < channel4) {
+    int in_idx =
+      n * channel4 * width * height +
+      (c - channel1 - channel2 - channel3) * width * height +
+      h * width + w;
+    out[tid] = in4[in_idx];
+  }
+  else if (c - channel1 - channel2 - channel3 - channel4 < channel5) {
+    int in_idx =
+      n * channel5 * width * height +
+      (c - channel1 - channel2 - channel3 - channel4) * width * height +
+      h * width + w;
+    out[tid] = in5[in_idx];
+  }
+  else if (c - channel1 - channel2 - channel3 - channel4 - channel5 < channel6) {
+    int in_idx =
+      n * channel6 * width * height +
+      (c - channel1 - channel2 - channel3 - channel4 - channel5) * width * height +
+      h * width + w;
+    out[tid] = in6[in_idx];
+  }
+}
+
+__global__ void cuda_split6(
+    int batch_size, int height, int width,
+    int channel1, int channel2, int channel3, int channel4, int channel5, int channel6,
+    float *out, float *in1, float *in2, float *in3, float *in4, float *in5, float *in6)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int channel_out = channel1 + channel2 + channel3 + channel4 + channel5 + channel6;
+
+  if (tid >= batch_size * channel_out * height * width) return;
+
+  int w = tid % width;
+  int h = (tid / width) % height;
+  int c = (tid / height / width) % channel_out;
+  int n = (tid / height / width / channel_out) % batch_size;
+
+  if (c < channel1) {
+    int in_idx =
+      n * channel1 * width * height +
+      c * width * height +
+      h * width + w;
+    in1[in_idx] = out[tid];
+  }
+  else if (c - channel1 < channel2) {
+    int in_idx =
+      n * channel2 * width * height +
+      (c - channel1) * width * height +
+      h * width + w;
+    in2[in_idx] = out[tid];
+  }
+  else if (c - channel1 - channel2 < channel3) {
+    int in_idx =
+      n * channel3 * width * height +
+      (c - channel1 - channel2) * width * height +
+      h * width + w;
+    in3[in_idx] = out[tid];
+  }
+  else if (c - channel1 - channel2 - channel3 < channel4) {
+    int in_idx =
+      n * channel4 * width * height +
+      (c - channel1 - channel2 - channel3) * width * height +
+      h * width + w;
+    in4[in_idx] = out[tid];
+  }
+  else if (c - channel1 - channel2 - channel3 - channel4 < channel5) {
+    int in_idx =
+      n * channel5 * width * height +
+      (c - channel1 - channel2 - channel3 - channel4) * width * height +
+      h * width + w;
+    in5[in_idx] = out[tid];
+  }
+  else if (c - channel1 - channel2 - channel3 - channel4 - channel5 < channel6) {
+    int in_idx =
+      n * channel6 * width * height +
+      (c - channel1 - channel2 - channel3 - channel4 - channel5) * width * height +
+      h * width + w;
+    in6[in_idx] = out[tid];
   }
 }
 
@@ -1003,6 +1121,18 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
           (float *)dx[2]->dev_ptr[dev],
           (float *)dx[3]->dev_ptr[dev]);
     }
+    else if (fan_in == 6) {
+      cuda_split6<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, dy->dim[2], dy->dim[3],
+          dx[0]->dim[1], dx[1]->dim[1], dx[2]->dim[1], dx[3]->dim[1], dx[4]->dim[1], dx[5]->dim[1],
+          (float *)dy->dev_ptr[dev],
+          (float *)dx[0]->dev_ptr[dev],
+          (float *)dx[1]->dev_ptr[dev],
+          (float *)dx[2]->dev_ptr[dev],
+          (float *)dx[3]->dev_ptr[dev],
+          (float *)dx[4]->dev_ptr[dev],
+          (float *)dx[5]->dev_ptr[dev]);
+    }
     else {
       assert(0);
     }
@@ -1052,6 +1182,18 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
           (float *)x[1]->dev_ptr[dev],
           (float *)x[2]->dev_ptr[dev],
           (float *)x[3]->dev_ptr[dev],
+          (float *)y->dev_ptr[dev]);
+    }
+    else if (fan_in == 6) {
+      cuda_concat6<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, y->dim[2], y->dim[3],
+          x[0]->dim[1], x[1]->dim[1], x[2]->dim[1], x[3]->dim[1], x[4]->dim[1], x[5]->dim[1],
+          (float *)x[0]->dev_ptr[dev],
+          (float *)x[1]->dev_ptr[dev],
+          (float *)x[2]->dev_ptr[dev],
+          (float *)x[3]->dev_ptr[dev],
+          (float *)x[4]->dev_ptr[dev],
+          (float *)x[5]->dev_ptr[dev],
           (float *)y->dev_ptr[dev]);
     }
     else {
