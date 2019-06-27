@@ -84,11 +84,9 @@ void init_fc_layer(
 
   execute_get_conv_bwd_data_algo(
       l->conv_desc, l->weight, l->d_output, l->d_input, &l->bwd_data_algo);
-  //l->bwd_data_algo = CUDNN_CONVOLUTION_BWD_DATA_ALGO_1; // FIXME
 
   execute_get_conv_bwd_filter_algo(
       l->conv_desc, l->input, l->d_output, l->d_weight, &l->bwd_filter_algo);
-  //l->bwd_filter_algo = CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1; // FIXME
 
   ////////////////////////////////////////////////////////////////
   // 6. Get Work Space Size in Bytes
