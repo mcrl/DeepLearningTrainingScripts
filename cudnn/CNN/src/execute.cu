@@ -718,7 +718,8 @@ int execute_apply_gradient(
 ////////////////////////////////////////////////////////////
 
 __global__ void cuda_concat2(
-    int batch_size, int channel1, int channel2, int height, int width,
+    int batch_size, int height, int width,
+    int channel1, int channel2,
     float *in1, float *in2, float *out)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -748,7 +749,8 @@ __global__ void cuda_concat2(
 }
 
 __global__ void cuda_split2(
-    int batch_size, int channel1, int channel2, int height, int width,
+    int batch_size, int height, int width,
+    int channel1, int channel2,
     float *out, float *in1, float *in2)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -774,6 +776,172 @@ __global__ void cuda_split2(
       (c - channel1) * width * height +
       h * width + w;
     in2[in_idx] = out[tid];
+  }
+}
+
+__global__ void cuda_concat3(
+    int batch_size, int height, int width,
+    int channel1, int channel2, int channel3,
+    float *in1, float *in2, float *in3, float *out)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int channel_out = channel1 + channel2 + channel3;
+
+  if (tid >= batch_size * channel_out * height * width) return;
+
+  int w = tid % width;
+  int h = (tid / width) % height;
+  int c = (tid / height / width) % channel_out;
+  int n = (tid / height / width / channel_out) % batch_size;
+
+  if (c < channel1) {
+    int in_idx =
+      n * channel1 * width * height +
+      c * width * height +
+      h * width + w;
+    out[tid] = in1[in_idx];
+  }
+  else if (c - channel1 < channel2) {
+    int in_idx =
+      n * channel2 * width * height +
+      (c - channel1) * width * height +
+      h * width + w;
+    out[tid] = in2[in_idx];
+  }
+  else {
+    int in_idx =
+      n * channel3 * width * height +
+      (c - channel1 - channel2) * width * height +
+      h * width + w;
+    out[tid] = in3[in_idx];
+  }
+}
+
+__global__ void cuda_split3(
+    int batch_size, int height, int width,
+    int channel1, int channel2, int channel3,
+    float *out, float *in1, float *in2, float *in3)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int channel_out = channel1 + channel2 + channel3;
+
+  if (tid >= batch_size * channel_out * height * width) return;
+
+  int w = tid % width;
+  int h = (tid / width) % height;
+  int c = (tid / height / width) % channel_out;
+  int n = (tid / height / width / channel_out) % batch_size;
+
+  if (c < channel1) {
+    int in_idx =
+      n * channel1 * width * height +
+      c * width * height +
+      h * width + w;
+    in1[in_idx] = out[tid];
+  }
+  else if (c - channel1 < channel2) {
+    int in_idx =
+      n * channel2 * width * height +
+      (c - channel1) * width * height +
+      h * width + w;
+    in2[in_idx] = out[tid];
+  }
+  else {
+    int in_idx =
+      n * channel3 * width * height +
+      (c - channel1 - channel2) * width * height +
+      h * width + w;
+    in3[in_idx] = out[tid];
+  }
+}
+
+__global__ void cuda_concat4(
+    int batch_size, int height, int width,
+    int channel1, int channel2, int channel3, int channel4,
+    float *in1, float *in2, float *in3, float *in4, float *out)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int channel_out = channel1 + channel2 + channel3;
+
+  if (tid >= batch_size * channel_out * height * width) return;
+
+  int w = tid % width;
+  int h = (tid / width) % height;
+  int c = (tid / height / width) % channel_out;
+  int n = (tid / height / width / channel_out) % batch_size;
+
+  if (c < channel1) {
+    int in_idx =
+      n * channel1 * width * height +
+      c * width * height +
+      h * width + w;
+    out[tid] = in1[in_idx];
+  }
+  else if (c - channel1 < channel2) {
+    int in_idx =
+      n * channel2 * width * height +
+      (c - channel1) * width * height +
+      h * width + w;
+    out[tid] = in2[in_idx];
+  }
+  else if (c - channel1 - channel2 < channel3) {
+    int in_idx =
+      n * channel3 * width * height +
+      (c - channel1 - channel2) * width * height +
+      h * width + w;
+    out[tid] = in3[in_idx];
+  }
+  else {
+    int in_idx =
+      n * channel4 * width * height +
+      (c - channel1 - channel2 - channel3) * width * height +
+      h * width + w;
+    out[tid] = in4[in_idx];
+  }
+}
+
+__global__ void cuda_split4(
+    int batch_size, int height, int width,
+    int channel1, int channel2, int channel3, int channel4,
+    float *out, float *in1, float *in2, float *in3, float *in4)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int channel_out = channel1 + channel2 + channel3;
+
+  if (tid >= batch_size * channel_out * height * width) return;
+
+  int w = tid % width;
+  int h = (tid / width) % height;
+  int c = (tid / height / width) % channel_out;
+  int n = (tid / height / width / channel_out) % batch_size;
+
+  if (c < channel1) {
+    int in_idx =
+      n * channel1 * width * height +
+      c * width * height +
+      h * width + w;
+    in1[in_idx] = out[tid];
+  }
+  else if (c - channel1 < channel2) {
+    int in_idx =
+      n * channel2 * width * height +
+      (c - channel1) * width * height +
+      h * width + w;
+    in2[in_idx] = out[tid];
+  }
+  else if (c - channel1 - channel2 < channel3) {
+    int in_idx =
+      n * channel3 * width * height +
+      (c - channel1 - channel2) * width * height +
+      h * width + w;
+    in3[in_idx] = out[tid];
+  }
+  else {
+    int in_idx =
+      n * channel4 * width * height +
+      (c - channel1 - channel2 - channel3) * width * height +
+      h * width + w;
+    in4[in_idx] = out[tid];
   }
 }
 
@@ -808,9 +976,36 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
 
     chkCUDA(cudaSetDevice(dev));
 
-    cuda_split2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
-        batch_size, dx[0]->dim[1], dx[1]->dim[1], dy->dim[2], dy->dim[3],
-        (float *)dy->dev_ptr[dev], (float *)dx[0]->dev_ptr[dev], (float *)dx[1]->dev_ptr[dev]);
+    if (fan_in == 2) {
+      cuda_split2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, dx[0]->dim[1], dx[1]->dim[1],
+          dy->dim[2], dy->dim[3],
+          (float *)dy->dev_ptr[dev],
+          (float *)dx[0]->dev_ptr[dev],
+          (float *)dx[1]->dev_ptr[dev]);
+    }
+    else if (fan_in == 3) {
+      cuda_split3<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, dy->dim[2], dy->dim[3],
+          dx[0]->dim[1], dx[1]->dim[1], dx[2]->dim[1],
+          (float *)dy->dev_ptr[dev],
+          (float *)dx[0]->dev_ptr[dev],
+          (float *)dx[1]->dev_ptr[dev],
+          (float *)dx[2]->dev_ptr[dev]);
+    }
+    else if (fan_in == 4) {
+      cuda_split4<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, dy->dim[2], dy->dim[3],
+          dx[0]->dim[1], dx[1]->dim[1], dx[2]->dim[1], dx[3]->dim[1],
+          (float *)dy->dev_ptr[dev],
+          (float *)dx[0]->dev_ptr[dev],
+          (float *)dx[1]->dev_ptr[dev],
+          (float *)dx[2]->dev_ptr[dev],
+          (float *)dx[3]->dev_ptr[dev]);
+    }
+    else {
+      assert(0);
+    }
   }
 
   return 0;
@@ -832,9 +1027,36 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
 
     chkCUDA(cudaSetDevice(dev));
 
-    cuda_concat2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
-        batch_size, x[0]->dim[1], x[1]->dim[1], y->dim[2], y->dim[3],
-        (float *)x[0]->dev_ptr[dev], (float *)x[1]->dev_ptr[dev], (float *)y->dev_ptr[dev]);
+    if (fan_in == 2) {
+      cuda_concat2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, y->dim[2], y->dim[3],
+          x[0]->dim[1], x[1]->dim[1],
+          (float *)x[0]->dev_ptr[dev],
+          (float *)x[1]->dev_ptr[dev],
+          (float *)y->dev_ptr[dev]);
+    }
+    else if (fan_in == 3) {
+      cuda_concat3<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, y->dim[2], y->dim[3],
+          x[0]->dim[1], x[1]->dim[1], x[2]->dim[1],
+          (float *)x[0]->dev_ptr[dev],
+          (float *)x[1]->dev_ptr[dev],
+          (float *)x[2]->dev_ptr[dev],
+          (float *)y->dev_ptr[dev]);
+    }
+    else if (fan_in == 4) {
+      cuda_concat4<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
+          batch_size, y->dim[2], y->dim[3],
+          x[0]->dim[1], x[1]->dim[1], x[2]->dim[1], x[3]->dim[1],
+          (float *)x[0]->dev_ptr[dev],
+          (float *)x[1]->dev_ptr[dev],
+          (float *)x[2]->dev_ptr[dev],
+          (float *)x[3]->dev_ptr[dev],
+          (float *)y->dev_ptr[dev]);
+    }
+    else {
+      assert(0);
+    }
   }
 
   return 0;
