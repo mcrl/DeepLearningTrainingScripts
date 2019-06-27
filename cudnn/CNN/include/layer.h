@@ -32,7 +32,7 @@ do {\
 #endif // TIME_LAYER
 
 
-//VGG CONNECTION
+// NETWORK CONNECTION HELPER
 #define CONNECT(up, down) \
 do {\
   share_buffer((down).input, (up).output);\
@@ -61,7 +61,6 @@ do {\
   alloc_buffer((down).d_output);\
 } while (0)
 
-//RESNET CONNECTION
 #define CONNECT_TO_BRANCH(up, branch) \
 do {\
   share_buffer((branch).input, (up).output);\
@@ -99,7 +98,6 @@ do {\
   share_buffer((elt).d_output, (branch).d_output[0]);\
 } while (0)
 
-//DENSENET CONNECTION
 #define CONNECT_FROM_BRANCH_TO_CONCAT(branch, concat) \
 do {\
   share_buffer((concat).input[0], (branch).input);\
@@ -112,22 +110,13 @@ do {\
 do {\
   share_buffer((concat).input[j], (up).output);\
   share_buffer((concat).d_input[j], (up).d_output);\
+  if ((j) == 0) {\
+    alloc_buffer((concat).output);\
+    alloc_buffer((concat).d_output);\
+  }\
 } while (0)
 
-//INCEPTION CONNECTION
-#define CONNECT_BRANCH_I(l_branch, l_down, i) \
-do {\
-  (l_down).input = (l_branch).input;\
-  (l_branch).d_output[i] = (l_down).d_input;\
-} while (0)
-
-#define CONNECT_CONCAT_I(l_up, l_concat, i) \
-do {\
-  (l_concat).input[i] = (l_up).output;\
-  (l_up).d_output = (l_concat).d_input[i];\
-} while (0)
-
-//PARAM FUNCTIONS
+// PARAM FUNCTIONS
 #define INIT_CONV_RES(l) \
 do {\
   float n_in = (l)->filter_height * (l)->filter_width * (l)->input_channel;\

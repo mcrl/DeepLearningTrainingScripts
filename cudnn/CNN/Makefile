@@ -1,5 +1,4 @@
-CNN := vgg resnet densenet
-#CNN := vgg resnet densenet inception
+CNN := vgg resnet densenet inception
 
 NVCC := nvcc
 CC := gcc
@@ -41,8 +40,7 @@ $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cu
 
 .PHONY : all clean
 
-all: vgg resnet densenet
-#all: vgg resnet densenet inception
+all: vgg resnet densenet inception
 
 vgg : obj/vgg.o $(OBJS) $(CPP_OBJS) $(CU_OBJS)
 	$(CXX) -o $@ $^ $(CC_INCLUDE) $(CC_CUDA_INCLUDE) $(CC_LIBRARY) $(CC_CUDA_LIBRARY) $(CFLAGS) -O3
