@@ -1,5 +1,5 @@
 # Deep Learning Training Scripts
----
+
 
 ## DNN Frameworks
 * Caffe
@@ -12,8 +12,20 @@
 * DenseNet
 * Inception
 
+## Language Modeling
+* GatedCNN-LM
+* Attention-MLP
+* Attention-RNN
+
+## Generative Model
+* DCGAN
+* A3C
+
 ## RNN Models
-TODO
+* DeepSpeech2
 
 ## Dependencies
-TODO
+* Pytorch 1.1.0
+* Tensorflow 1.13.1
+* cuda-toolkit 10.0
+* cudnn 7.4.2
