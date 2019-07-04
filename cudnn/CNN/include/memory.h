@@ -51,6 +51,28 @@ struct _gpu_memory_object {
 
 typedef struct _gpu_memory_object *gpu_mem;
 
+#define is_data(mem) ( (mem)->obj_type == DATA )
+
+#define is_data_grad(mem) ( (mem)->obj_type == DATA_GRADIENT )
+
+#define is_data_or_data_grad(mem) ( is_data(mem) || is_data_grad(mem) )
+
+#define is_weight(mem) ( (mem)->obj_type == WEIGHT )
+
+#define is_weight_grad(mem) ( (mem)->obj_type == WEIGHT_GRADIENT )
+
+#define is_bn_param(mem) ( (mem)->obj_type == BN_PARAM )
+
+#define is_bn_param_grad(mem) ( (mem)->obj_type == BN_PARAM_GRADIENT )
+
+#define is_weight_or_param(mem) ( is_weight(mem) || is_bn_param(mem) )
+
+#define is_weight_grad_or_param_grad(mem) ( is_weight_grad(mem) || is_bn_param_grad(mem) )
+
+#define is_work_space(mem) ( (mem)->obj_type == WORK_SPACE )
+
+#define is_reserve_space(mem) ( (mem)->obj_type == RESERVE_SPACE )
+
 size_t data_type_size(gpu_mem mem);
 
 size_t logical_buffer_size(gpu_mem mem);
