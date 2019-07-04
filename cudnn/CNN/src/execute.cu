@@ -703,7 +703,7 @@ int execute_linear_bwd_data(gpu_mem w, gpu_mem dy, gpu_mem dx)
     chkCUBLAS(cublasSgemm(
           cublas_handle[dev],
           CUBLAS_OP_N, CUBLAS_OP_N,
-          m, n, k,
+          m, distribute(n, dev), k,
           __1,
           (float *)w->dev_ptr[dev], m,
           (float *)dy->dev_ptr[dev], k,
@@ -730,7 +730,7 @@ int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw)
     chkCUBLAS(cublasSgemm(
           cublas_handle[dev],
           CUBLAS_OP_N, CUBLAS_OP_T,
-          m, n, k,
+          m, n, distribute(k, dev),
           __1,
           (float *)x->dev_ptr[dev], m,
           (float *)dy->dev_ptr[dev], n,
@@ -764,7 +764,7 @@ int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y)
     chkCUBLAS(cublasSgemm(
           cublas_handle[dev],
           CUBLAS_OP_T, CUBLAS_OP_N,
-          m, n, k,
+          m, distribute(n, dev), k,
           __1,
           (float *)w->dev_ptr[dev], k,
           (float *)x->dev_ptr[dev], k,

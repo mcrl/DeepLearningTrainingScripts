@@ -8,7 +8,7 @@
 
 #include "execute.h"
 
-#define USE_CUDNN_FC
+//#define USE_CUDNN_FC
 //#define USE_LOG
 //#define USE_TIMER
 //#define PRINT_LOSS
