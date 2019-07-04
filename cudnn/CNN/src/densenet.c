@@ -465,7 +465,7 @@ void densenet_backward()
 
 void densenet_connect()
 {
-  CONNECT_FROM_INPUT(net.input, net.conv1);
+  CONNECT(net.input, net.conv1);
   CONNECT(net.conv1, net.bn1);
   CONNECT(net.bn1, net.relu1);
   CONNECT(net.relu1, net.pool[0]);

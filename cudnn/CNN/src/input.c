@@ -43,5 +43,12 @@ void init_input_layer(
 
 void set_input(input_layer *l, float *data_in)
 {
+  static bool initialized = false;
+
+  if (!initialized) {
+    alloc_buffer(l->output);
+    initialized = true;
+  }
+
   write_buffer(l->output, data_in, true);
 }

@@ -42,16 +42,6 @@ do {\
   alloc_buffer((down).d_output);\
 } while (0)
 
-#define CONNECT_FROM_INPUT(in, down) \
-do {\
-  alloc_buffer((in).output);\
-  alloc_buffer((in).d_output);\
-  share_buffer((down).input, (in).output);\
-  share_buffer((down).d_input, (in).d_output);\
-  alloc_buffer((down).output);\
-  alloc_buffer((down).d_output);\
-} while (0)
-
 #define CONNECT_WITH_BIAS(up, bias, down) \
 do {\
   share_buffer((bias).output, (up).output);\

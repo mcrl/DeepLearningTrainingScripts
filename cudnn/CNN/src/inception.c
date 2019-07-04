@@ -1002,7 +1002,7 @@ void inception_backward()
 
 void inception_connect()
 {
-  CONNECT_FROM_INPUT(net.input, net.prologue_conv[0]);
+  CONNECT(net.input, net.prologue_conv[0]);
 
   for (int i = 0; i < 3; i++) {
     CONNECT(net.prologue_conv[i], net.prologue_bn[i]);
