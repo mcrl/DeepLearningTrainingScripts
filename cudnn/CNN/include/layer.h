@@ -36,75 +36,46 @@ do {\
 // NETWORK CONNECTION HELPER
 #define CONNECT(up, down) \
 do {\
-  share_buffer((down).input, (up).output);\
-  share_buffer((down).d_input, (up).d_output);\
-  alloc_buffer((down).output);\
-  alloc_buffer((down).d_output);\
+  assert(link_buffer((down).input, (up).output) == 0);\
+  assert(link_buffer((down).d_input, (up).d_output) == 0);\
 } while (0)
 
 #define CONNECT_WITH_BIAS(up, bias, down) \
 do {\
-  share_buffer((bias).output, (up).output);\
-  share_buffer((bias).d_output, (up).d_output);\
-  share_buffer((down).input, (bias).output);\
-  share_buffer((down).d_input, (bias).d_output);\
-  alloc_buffer((down).output);\
-  alloc_buffer((down).d_output);\
-} while (0)
-
-#define CONNECT_TO_BRANCH(up, branch) \
-do {\
-  share_buffer((branch).input, (up).output);\
-  share_buffer((branch).d_input, (up).d_output);\
-  for (int j = 0; j < (branch).fan_out; j++) {\
-    alloc_buffer((branch).d_output[j]);\
-  }\
+  assert(link_buffer((bias).output, (up).output) == 0);\
+  assert(link_buffer((bias).d_output, (up).d_output) == 0);\
+  assert(link_buffer((down).input, (bias).output) == 0);\
+  assert(link_buffer((down).d_input, (bias).d_output) == 0);\
 } while (0)
 
 #define CONNECT_FROM_BRANCH(branch, down, j) \
 do {\
-  share_buffer((down).input, (branch).input);\
-  share_buffer((down).d_input, (branch).d_output[j]);\
-  alloc_buffer((down).output);\
-  alloc_buffer((down).d_output);\
+  assert(link_buffer((down).input, (branch).input) == 0);\
+  assert(link_buffer((down).d_input, (branch).d_output[j]) == 0);\
 } while (0)
 
 #define CONNECT_TO_ELT(up, elt, j) \
 do {\
-  share_buffer((elt).input[j], (up).output);\
-  if ((j) == 0) {\
-    alloc_buffer((elt).output);\
-    share_buffer((elt).d_output, (up).d_output);\
-  }\
-  else {\
-    free_buffer((up).d_output);\
-    share_buffer((up).d_output, (elt).d_output);\
-  }\
-} while (0)
-
-#define CONNECT_FROM_BRANCH_TO_ELT(branch, elt) \
-do {\
-  share_buffer((elt).input[0], (branch).input);\
-  alloc_buffer((elt).output);\
-  share_buffer((elt).d_output, (branch).d_output[0]);\
-} while (0)
-
-#define CONNECT_FROM_BRANCH_TO_CONCAT(branch, concat) \
-do {\
-  share_buffer((concat).input[0], (branch).input);\
-  share_buffer((concat).d_input[0], (branch).d_output[0]);\
-  alloc_buffer((concat).output);\
-  alloc_buffer((concat).d_output);\
+  assert(link_buffer((elt).input[j], (up).output) == 0);\
+  assert(link_buffer((up).d_output, (elt).d_output) == 0);\
 } while (0)
 
 #define CONNECT_TO_CONCAT(up, concat, j) \
 do {\
-  share_buffer((concat).input[j], (up).output);\
-  share_buffer((concat).d_input[j], (up).d_output);\
-  if ((j) == 0) {\
-    alloc_buffer((concat).output);\
-    alloc_buffer((concat).d_output);\
-  }\
+  assert(link_buffer((concat).input[j], (up).output) == 0);\
+  assert(link_buffer((concat).d_input[j], (up).d_output) == 0);\
+} while (0)
+
+#define CONNECT_FROM_BRANCH_TO_ELT(branch, elt) \
+do {\
+  assert(link_buffer((elt).input[0], (branch).input) == 0);\
+  assert(link_buffer((branch).d_output[0], (elt).d_output) == 0);\
+} while (0)
+
+#define CONNECT_FROM_BRANCH_TO_CONCAT(branch, concat) \
+do {\
+  assert(link_buffer((concat).input[0], (branch).input) == 0);\
+  assert(link_buffer((concat).d_input[0], (branch).d_output[0]) == 0);\
 } while (0)
 
 // PARAM FUNCTIONS

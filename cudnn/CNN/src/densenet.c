@@ -472,10 +472,10 @@ void densenet_connect()
 
   for (int i = 0; i < 6; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.pool[0], net.branch2[i]);
+      CONNECT(net.pool[0], net.branch2[i]);
     }
     else {
-      CONNECT_TO_BRANCH(net.concat2[i-1], net.branch2[i]);
+      CONNECT(net.concat2[i-1], net.branch2[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch2[i], net.concat2[i]);
@@ -497,10 +497,10 @@ void densenet_connect()
 
   for (int i = 0; i < 12; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.pool[1], net.branch3[i]);
+      CONNECT(net.pool[1], net.branch3[i]);
     }
     else {
-      CONNECT_TO_BRANCH(net.concat3[i-1], net.branch3[i]);
+      CONNECT(net.concat3[i-1], net.branch3[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch3[i], net.concat3[i]);
@@ -522,10 +522,10 @@ void densenet_connect()
 
   for (int i = 0; i < 24; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.pool[2], net.branch4[i]);
+      CONNECT(net.pool[2], net.branch4[i]);
     }
     else {
-      CONNECT_TO_BRANCH(net.concat4[i-1], net.branch4[i]);
+      CONNECT(net.concat4[i-1], net.branch4[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch4[i], net.concat4[i]);
@@ -547,10 +547,10 @@ void densenet_connect()
 
   for (int i = 0; i < 16; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.pool[3], net.branch5[i]);
+      CONNECT(net.pool[3], net.branch5[i]);
     }
     else {
-      CONNECT_TO_BRANCH(net.concat5[i-1], net.branch5[i]);
+      CONNECT(net.concat5[i-1], net.branch5[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch5[i], net.concat5[i]);

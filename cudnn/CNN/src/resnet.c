@@ -622,7 +622,7 @@ void resnet_connect()
 
   for (int i = 0; i < B0; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.pool1, net.branch2[i]);
+      CONNECT(net.pool1, net.branch2[i]);
       CONNECT_FROM_BRANCH(net.branch2[i], net.conv2_branch, 0);
       CONNECT_FROM_BRANCH(net.branch2[i], net.conv2[i][0], 1);
 
@@ -641,7 +641,7 @@ void resnet_connect()
       CONNECT(net.conv2_add[i], net.conv2_relu[i][2]);
     }
     else {
-      CONNECT_TO_BRANCH(net.conv2_relu[i-1][2], net.branch2[i]);
+      CONNECT(net.conv2_relu[i-1][2], net.branch2[i]);
       CONNECT_FROM_BRANCH_TO_ELT(net.branch2[i], net.conv2_add[i]);
       CONNECT_FROM_BRANCH(net.branch2[i], net.conv2[i][0], 1);
 
@@ -660,7 +660,7 @@ void resnet_connect()
 
   for (int i = 0; i < B1; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.conv2_relu[B0-1][2], net.branch3[i]);
+      CONNECT(net.conv2_relu[B0-1][2], net.branch3[i]);
       CONNECT_FROM_BRANCH(net.branch3[i], net.conv3_branch, 0);
       CONNECT_FROM_BRANCH(net.branch3[i], net.conv3[i][0], 1);
 
@@ -679,7 +679,7 @@ void resnet_connect()
       CONNECT(net.conv3_add[i], net.conv3_relu[i][2]);
     }
     else {
-      CONNECT_TO_BRANCH(net.conv3_relu[i-1][2], net.branch3[i]);
+      CONNECT(net.conv3_relu[i-1][2], net.branch3[i]);
       CONNECT_FROM_BRANCH_TO_ELT(net.branch3[i], net.conv3_add[i]);
       CONNECT_FROM_BRANCH(net.branch3[i], net.conv3[i][0], 1);
 
@@ -698,7 +698,7 @@ void resnet_connect()
 
   for (int i = 0; i < B2; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.conv3_relu[B1-1][2], net.branch4[i]);
+      CONNECT(net.conv3_relu[B1-1][2], net.branch4[i]);
       CONNECT_FROM_BRANCH(net.branch4[i], net.conv4_branch, 0);
       CONNECT_FROM_BRANCH(net.branch4[i], net.conv4[i][0], 1);
 
@@ -717,7 +717,7 @@ void resnet_connect()
       CONNECT(net.conv4_add[i], net.conv4_relu[i][2]);
     }
     else {
-      CONNECT_TO_BRANCH(net.conv4_relu[i-1][2], net.branch4[i]);
+      CONNECT(net.conv4_relu[i-1][2], net.branch4[i]);
       CONNECT_FROM_BRANCH_TO_ELT(net.branch4[i], net.conv4_add[i]);
       CONNECT_FROM_BRANCH(net.branch4[i], net.conv4[i][0], 1);
 
@@ -736,7 +736,7 @@ void resnet_connect()
 
   for (int i = 0; i < B3; i++) {
     if (i == 0) {
-      CONNECT_TO_BRANCH(net.conv4_relu[B2-1][2], net.branch5[i]);
+      CONNECT(net.conv4_relu[B2-1][2], net.branch5[i]);
       CONNECT_FROM_BRANCH(net.branch5[i], net.conv5_branch, 0);
       CONNECT_FROM_BRANCH(net.branch5[i], net.conv5[i][0], 1);
 
@@ -755,7 +755,7 @@ void resnet_connect()
       CONNECT(net.conv5_add[i], net.conv5_relu[i][2]);
     }
     else {
-      CONNECT_TO_BRANCH(net.conv5_relu[i-1][2], net.branch5[i]);
+      CONNECT(net.conv5_relu[i-1][2], net.branch5[i]);
       CONNECT_FROM_BRANCH_TO_ELT(net.branch5[i], net.conv5_add[i]);
       CONNECT_FROM_BRANCH(net.branch5[i], net.conv5[i][0], 1);
 

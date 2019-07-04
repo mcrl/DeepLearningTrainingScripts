@@ -30,6 +30,7 @@ typedef enum {
 
 struct _gpu_memory_object {
   iterator_t iterator;
+  struct _gpu_memory_object *next;
 
   void *dev_ptr[MAX_NDEV];
   size_t size_in_bytes[MAX_NDEV];
@@ -37,10 +38,10 @@ struct _gpu_memory_object {
   int ndim;
   size_t dim[CUDNN_DIM_MAX];
 
+  cudnnDataType_t data_type;
   cudnnTensorDescriptor_t tensor_desc[MAX_NDEV];
   cudnnFilterDescriptor_t filter_desc;
 
-  cudnnDataType_t data_type;
   gpu_memory_object_t obj_type;
 
   bool allocated;
@@ -119,15 +120,11 @@ int alloc_buffer(gpu_mem mem);
 
 int free_buffer(gpu_mem mem);
 
-int share_buffer(gpu_mem dst, gpu_mem src);
+int link_buffer(gpu_mem child, gpu_mem parent);
 
 int alloc_work_space(void);
 
-int free_work_space(void);
-
 int alloc_reserve_space(void);
-
-int free_reserve_space(void);
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API

@@ -26,6 +26,17 @@ static const size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 // Abstract Device Memory Object
 ////////////////////////////////////////////////////////////
 
+static gpu_mem get_prev_rec(gpu_mem current, gpu_mem target)
+{
+  if (current->next == target) return target;
+  else return get_prev_rec(current->next, target);
+}
+
+static gpu_mem get_prev(gpu_mem mem)
+{
+  return get_prev_rec(mem, mem);
+}
+
 size_t data_type_size(gpu_mem mem)
 {
   return size_of_cudnn_data_type[(int)mem->data_type];
@@ -114,6 +125,7 @@ int create_buffer_data(
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA;
   (*mem)->allocated = false;
@@ -147,6 +159,7 @@ int create_buffer_data_gradient(
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA_GRADIENT;
   (*mem)->allocated = false;
@@ -183,6 +196,7 @@ int create_buffer_weight(
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT;
   (*mem)->allocated = false;
@@ -216,6 +230,7 @@ int create_buffer_weight_gradient(
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT_GRADIENT;
   (*mem)->allocated = false;
@@ -253,6 +268,7 @@ int create_buffer_bn_param(
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = BN_PARAM;
   (*mem)->allocated = false;
@@ -289,6 +305,7 @@ int create_buffer_bn_param_gradient(
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = BN_PARAM_GRADIENT;
   (*mem)->allocated = false;
@@ -316,6 +333,7 @@ int create_buffer_work_space(gpu_mem *mem, size_t size_in_bytes)
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = 0;
   (*mem)->obj_type = WORK_SPACE;
   (*mem)->allocated = false;
@@ -331,6 +349,7 @@ int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes)
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
   if (*mem == NULL) return -1;
 
+  (*mem)->next = *mem;
   (*mem)->data_type = 0;
   (*mem)->obj_type = RESERVE_SPACE;
   (*mem)->allocated = false;
@@ -358,6 +377,8 @@ int destroy_buffer(gpu_mem mem)
       chkCUDA(cudaFree(mem->dev_ptr[dev]));
     }
   }
+
+  get_prev(mem)->next = mem->next;
 
   list_erase(&memory_list[mem->obj_type], &mem->iterator);
 
@@ -527,8 +548,14 @@ int alloc_buffer(gpu_mem mem)
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }
-
   mem->allocated = true;
+
+  for (gpu_mem tmp = mem->next; !tmp->allocated; tmp = tmp->next) {
+    for (int dev = 0; dev < num_devices; dev++) {
+      tmp->dev_ptr[dev] = mem->dev_ptr[dev];
+    }
+    tmp->allocated = true;
+  }
 
   return 0;
 }
@@ -542,21 +569,24 @@ int free_buffer(gpu_mem mem)
     chkCUDA(cudaFree(mem->dev_ptr[dev]));
     mem->dev_ptr[dev] = NULL;
   }
-
   mem->allocated = false;
+
+  for (gpu_mem tmp = mem->next; tmp->allocated; tmp = tmp->next) {
+    for (int dev = 0; dev < num_devices; dev++) {
+      tmp->dev_ptr[dev] = NULL;
+    }
+    tmp->allocated = false;
+  }
 
   return 0;
 }
 
-int share_buffer(gpu_mem dst, gpu_mem src)
+int link_buffer(gpu_mem child, gpu_mem parent)
 {
-  if (dst->allocated || !src->allocated) return -1;
+  if (child->next != child) return -1;
 
-  for (int dev = 0; dev < num_devices; dev++) {
-    dst->dev_ptr[dev] = src->dev_ptr[dev];
-  }
-
-  dst->allocated = true;
+  child->next = parent->next;
+  parent->next = child;
 
   return 0;
 }
@@ -613,27 +643,6 @@ int alloc_reserve_space()
     }
 
     mem->allocated = true;
-  }
-
-  return 0;
-}
-
-int free_reserve_space()
-{
-  list_t *l = &memory_list[RESERVE_SPACE];
-
-  list_iter(l, it) {
-    gpu_mem mem = list_data(struct _gpu_memory_object, it);
-
-    if (!mem->allocated) return -1;
-
-    for (int dev = 0; dev < num_devices; dev++) {
-      chkCUDA(cudaSetDevice(dev));
-      chkCUDA(cudaFree(&mem->dev_ptr[dev]));
-      mem->dev_ptr[dev] = NULL;
-    }
-
-    mem->allocated = false;
   }
 
   return 0;

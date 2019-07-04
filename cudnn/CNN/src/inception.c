@@ -1030,7 +1030,7 @@ void inception_connect()
     }
   }
 
-  CONNECT_TO_BRANCH(net.prologue_pool[1], net.A_branch[0]);
+  CONNECT(net.prologue_pool[1], net.A_branch[0]);
 
   for (int i = 0; i < 3; i++) {
     CONNECT_FROM_BRANCH(net.A_branch[i], net.A_conv1[i], 0);
@@ -1069,11 +1069,11 @@ void inception_connect()
     CONNECT_TO_CONCAT(net.A_relu4[i], net.A_concat[i], 3);
 
     if (i != 2) {
-      CONNECT_TO_BRANCH(net.A_concat[i], net.A_branch[i+1]);
+      CONNECT(net.A_concat[i], net.A_branch[i+1]);
     }
   }
 
-  CONNECT_TO_BRANCH(net.A_concat[2], net.B_branch);
+  CONNECT(net.A_concat[2], net.B_branch);
 
   for (int i = 0; i < 1; i++) {
     CONNECT_FROM_BRANCH(net.B_branch, net.B_pool1, 0);
@@ -1097,7 +1097,7 @@ void inception_connect()
     CONNECT_TO_CONCAT(net.B_relu3[2], net.B_concat, 2);
   }
 
-  CONNECT_TO_BRANCH(net.B_concat, net.C_branch[0]);
+  CONNECT(net.B_concat, net.C_branch[0]);
 
   for (int i = 0; i < 4; i++) {
     CONNECT_FROM_BRANCH(net.C_branch[i], net.C_conv1[i], 0);
@@ -1136,11 +1136,11 @@ void inception_connect()
     CONNECT_TO_CONCAT(net.C_relu4[i], net.C_concat[i], 3);
 
     if (i != 3) {
-      CONNECT_TO_BRANCH(net.C_concat[i], net.C_branch[i+1]);
+      CONNECT(net.C_concat[i], net.C_branch[i+1]);
     }
   }
 
-  CONNECT_TO_BRANCH(net.C_concat[3], net.D_branch);
+  CONNECT(net.C_concat[3], net.D_branch);
 
   for (int i = 0; i < 1; i++) {
     CONNECT_FROM_BRANCH(net.D_branch, net.D_pool1, 0);
@@ -1170,7 +1170,7 @@ void inception_connect()
     CONNECT_TO_CONCAT(net.D_relu3[3], net.D_concat, 2);
   }
 
-  CONNECT_TO_BRANCH(net.D_concat, net.E_branch[0]);
+  CONNECT(net.D_concat, net.E_branch[0]);
 
   for (int i = 0; i < 2; i++) {
     CONNECT_FROM_BRANCH(net.E_branch[i], net.E_conv1[i], 0);
@@ -1183,7 +1183,7 @@ void inception_connect()
 
     CONNECT(net.E_conv2[i][0], net.E_bn2[i][0]);
     CONNECT(net.E_bn2[i][0], net.E_relu2[i][0]);
-    CONNECT_TO_BRANCH(net.E_relu2[i][0], net.E_branch2[i]);
+    CONNECT(net.E_relu2[i][0], net.E_branch2[i]);
 
     for (int j = 1; j < 3; j++) {
       CONNECT_FROM_BRANCH(net.E_branch2[i], net.E_conv2[i][j], (j-1));
@@ -1196,7 +1196,7 @@ void inception_connect()
     CONNECT(net.E_relu3[i][0], net.E_conv3[i][1]);
     CONNECT(net.E_conv3[i][1], net.E_bn3[i][1]);
     CONNECT(net.E_bn3[i][1], net.E_relu3[i][1]);
-    CONNECT_TO_BRANCH(net.E_relu3[i][1], net.E_branch3[i]);
+    CONNECT(net.E_relu3[i][1], net.E_branch3[i]);
 
     for (int j = 2; j < 4; j++) {
       CONNECT_FROM_BRANCH(net.E_branch3[i], net.E_conv3[i][j], (j-2));
@@ -1216,7 +1216,7 @@ void inception_connect()
     CONNECT_TO_CONCAT(net.E_relu4[i], net.E_concat[i], 5);
 
     if (i != 1) {
-      CONNECT_TO_BRANCH(net.E_concat[i], net.E_branch[i+1]);
+      CONNECT(net.E_concat[i], net.E_branch[i+1]);
     }
   }
 
