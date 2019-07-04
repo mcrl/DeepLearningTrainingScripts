@@ -8,30 +8,40 @@
 
 #include "execute.h"
 
-//#define USE_CUDNN_FC
-//#define TIME_LAYER
+#define USE_CUDNN_FC
+//#define USE_LOG
+//#define USE_TIMER
 //#define PRINT_LOSS
 
-#ifdef TIME_LAYER
+#ifdef USE_LOG
+#define LOG(msg) fprintf(stderr, "[%s:%d] %s() %s\n", __FILE__, __LINE__, __func__, #msg)
+#else
+#define LOG(msg)
+#endif // USE_LOG
+
+#ifdef USE_TIMER
 #define START_CNN_TIMER(name) \
 static struct timespec st_##name;\
 do {\
+  LOG(name##_0);\
   synch_device();\
+  LOG(name##_1);\
   clock_gettime(CLOCK_MONOTONIC, &st_##name);\
 } while (0)
 
 #define STOP_CNN_TIMER(name) \
 static struct timespec ed_##name;\
 do {\
+  LOG(name##_2);\
   synch_device();\
+  LOG(name##_3);\
   clock_gettime(CLOCK_MONOTONIC, &ed_##name);\
   l->name += diff_timespec_ms(st_##name, ed_##name);\
 } while (0)
 #else
 #define START_CNN_TIMER(name)
 #define STOP_CNN_TIMER(name)
-#endif // TIME_LAYER
-
+#endif // USE_TIMER
 
 // NETWORK CONNECTION HELPER
 #define CONNECT(up, down) \

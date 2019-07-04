@@ -81,6 +81,7 @@ void set_label(softmax_layer *l, int *label_in)
 
   if (!initialized) {
     alloc_buffer(l->label);
+    alloc_buffer(l->d_output);
     initialized = true;
   }
 

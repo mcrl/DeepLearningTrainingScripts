@@ -16,12 +16,6 @@
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-#if USE_LOG
-#define LOG(msg) fprintf(stderr, "[%s:%d] %s() %s\n", __FILE__, __LINE__, __func__, #msg)
-#else
-#define LOG(msg)
-#endif
-
 #define chkCUDA(exp) \
   do {\
     cudaError_t status = (exp);\

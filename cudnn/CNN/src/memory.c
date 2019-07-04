@@ -545,6 +545,7 @@ int alloc_buffer(gpu_mem mem)
   if (mem->allocated) return -1;
 
   for (int dev = 0; dev < num_devices; dev++) {
+    mem->dev_ptr[dev] = NULL;
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
   }

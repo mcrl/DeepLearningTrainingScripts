@@ -31,9 +31,7 @@ static const float zero_float32 = 0.0;
 do {\
   assert(mem);\
   assert(test_func(mem));\
-  if (!(mem)->allocated) {\
-    assert(0);\
-  }\
+  assert((mem)->allocated);\
 } while (0)
 
 #define test_output(test_func, mem) \
@@ -41,7 +39,8 @@ do {\
   assert(mem);\
   assert(test_func(mem));\
   if (!(mem)->allocated) {\
-    assert(0);\
+    alloc_buffer(mem);\
+    assert((mem)->allocated);\
   }\
 } while (0)
 
@@ -160,9 +159,9 @@ int execute_bn_bwd(
   test_input(is_data, x);
   test_input(is_data_grad, dy);
   test_output(is_data_grad, dx);
-  test_input(is_weight, w);
-  test_output(is_weight_grad, dw);
-  test_output(is_weight_grad, db);
+  test_input(is_bn_param, w);
+  test_output(is_bn_param_grad, dw);
+  test_output(is_bn_param_grad, db);
   test_output(is_bn_param, s_mean);
   test_output(is_bn_param, s_var);
 
