@@ -465,7 +465,7 @@ void densenet_backward()
 
 void densenet_connect()
 {
-  CONNECT(net.input, net.conv1);
+  CONNECT_FROM_INPUT(net.input, net.conv1);
   CONNECT(net.conv1, net.bn1);
   CONNECT(net.bn1, net.relu1);
   CONNECT(net.relu1, net.pool[0]);
@@ -475,7 +475,7 @@ void densenet_connect()
       CONNECT(net.pool[0], net.branch2[i]);
     }
     else {
-      CONNECT(net.concat2[i-1], net.branch2[i]);
+      CONNECT_FROM_CONCAT(net.concat2[i-1], net.branch2[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch2[i], net.concat2[i]);
@@ -490,7 +490,7 @@ void densenet_connect()
     CONNECT_TO_CONCAT(net.conv2[i][1], net.concat2[i], 1);
   }
 
-  CONNECT(net.concat2[5], net.trans_bn[0]);
+  CONNECT_FROM_CONCAT(net.concat2[5], net.trans_bn[0]);
   CONNECT(net.trans_bn[0], net.trans_relu[0]);
   CONNECT(net.trans_relu[0], net.trans_conv[0]);
   CONNECT(net.trans_conv[0], net.pool[1]);
@@ -500,7 +500,7 @@ void densenet_connect()
       CONNECT(net.pool[1], net.branch3[i]);
     }
     else {
-      CONNECT(net.concat3[i-1], net.branch3[i]);
+      CONNECT_FROM_CONCAT(net.concat3[i-1], net.branch3[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch3[i], net.concat3[i]);
@@ -515,7 +515,7 @@ void densenet_connect()
     CONNECT_TO_CONCAT(net.conv3[i][1], net.concat3[i], 1);
   }
 
-  CONNECT(net.concat3[11], net.trans_bn[1]);
+  CONNECT_FROM_CONCAT(net.concat3[11], net.trans_bn[1]);
   CONNECT(net.trans_bn[1], net.trans_relu[1]);
   CONNECT(net.trans_relu[1], net.trans_conv[1]);
   CONNECT(net.trans_conv[1], net.pool[2]);
@@ -525,7 +525,7 @@ void densenet_connect()
       CONNECT(net.pool[2], net.branch4[i]);
     }
     else {
-      CONNECT(net.concat4[i-1], net.branch4[i]);
+      CONNECT_FROM_CONCAT(net.concat4[i-1], net.branch4[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch4[i], net.concat4[i]);
@@ -540,7 +540,7 @@ void densenet_connect()
     CONNECT_TO_CONCAT(net.conv4[i][1], net.concat4[i], 1);
   }
 
-  CONNECT(net.concat4[23], net.trans_bn[2]);
+  CONNECT_FROM_CONCAT(net.concat4[23], net.trans_bn[2]);
   CONNECT(net.trans_bn[2], net.trans_relu[2]);
   CONNECT(net.trans_relu[2], net.trans_conv[2]);
   CONNECT(net.trans_conv[2], net.pool[3]);
@@ -550,7 +550,7 @@ void densenet_connect()
       CONNECT(net.pool[3], net.branch5[i]);
     }
     else {
-      CONNECT(net.concat5[i-1], net.branch5[i]);
+      CONNECT_FROM_CONCAT(net.concat5[i-1], net.branch5[i]);
     }
 
     CONNECT_FROM_BRANCH_TO_CONCAT(net.branch5[i], net.concat5[i]);
@@ -565,13 +565,11 @@ void densenet_connect()
     CONNECT_TO_CONCAT(net.conv5[i][1], net.concat5[i], 1);
   }
 
-  CONNECT(net.concat5[15], net.trans_bn[3]);
+  CONNECT_FROM_CONCAT(net.concat5[15], net.trans_bn[3]);
   CONNECT(net.trans_bn[3], net.trans_relu[3]);
   CONNECT(net.trans_relu[3], net.pool[4]);
   CONNECT(net.pool[4], net.fc);
   CONNECT_WITH_BIAS(net.fc, net.bias, net.softmax);
-
-  alloc_work_space();
 }
 
 #define DENSENET_LAYER(FUNC) \

@@ -9,15 +9,8 @@
 #include "execute.h"
 
 //#define USE_CUDNN_FC
-//#define USE_LOG
 //#define USE_TIMER
 //#define PRINT_LOSS
-
-#ifdef USE_LOG
-#define LOG(msg) fprintf(stderr, "[%s:%d] %s() %s\n", __FILE__, __LINE__, __func__, #msg)
-#else
-#define LOG(msg)
-#endif // USE_LOG
 
 #ifdef USE_TIMER
 #define START_CNN_TIMER(name) \
@@ -46,46 +39,82 @@ do {\
 // NETWORK CONNECTION HELPER
 #define CONNECT(up, down) \
 do {\
-  assert(link_buffer((down).input, (up).output) == 0);\
-  assert(link_buffer((down).d_input, (up).d_output) == 0);\
+  LOG(connect_up_down);\
+  assert(bind_buffer2((down).input, (up).output) == 0);\
+  assert(bind_buffer3((down).d_input, (up).d_output, (up).d_input, 0) == 0);\
+} while (0)
+
+#define CONNECT_FROM_INPUT(in, down) \
+do {\
+  LOG(connect_in_down);\
+  assert(bind_buffer2((down).input, (in).output) == 0);\
+  assert(bind_buffer2((down).d_input, (in).d_output) == 0);\
 } while (0)
 
 #define CONNECT_WITH_BIAS(up, bias, down) \
 do {\
-  assert(link_buffer((bias).output, (up).output) == 0);\
-  assert(link_buffer((bias).d_output, (up).d_output) == 0);\
-  assert(link_buffer((down).input, (bias).output) == 0);\
-  assert(link_buffer((down).d_input, (bias).d_output) == 0);\
+  LOG(connect_up_bias_down);\
+  CONNECT(up, down);\
+  assert(bind_buffer2((bias).output, (down).input) == 0);\
+  assert(bind_buffer2((bias).d_output, (down).d_input) == 0);\
 } while (0)
 
 #define CONNECT_FROM_BRANCH(branch, down, j) \
 do {\
-  assert(link_buffer((down).input, (branch).input) == 0);\
-  assert(link_buffer((down).d_input, (branch).d_output[j]) == 0);\
+  LOG(connect_branch_down);\
+  assert(bind_buffer2((down).input, (branch).input) == 0);\
+  assert(bind_buffer3((down).d_input, (branch).d_output[j], (branch).d_input, j) == 0);\
 } while (0)
 
 #define CONNECT_TO_ELT(up, elt, j) \
 do {\
-  assert(link_buffer((elt).input[j], (up).output) == 0);\
-  assert(link_buffer((up).d_output, (elt).d_output) == 0);\
+  LOG(connect_up_elt);\
+  assert(bind_buffer2((elt).input[j], (up).output) == 0);\
+  if (j == 0) {\
+    assert(bind_buffer3((elt).d_output, (up).d_output, (up).d_input, 0) == 0);\
+  }\
+  else {\
+    assert(bind_buffer2((up).d_output, (elt).d_output) == 0);\
+  }\
+} while (0)
+
+#define CONNECT_FROM_ELT(elt, down) \
+do {\
+  LOG(connect_elt_own);\
+  assert(bind_buffer2((down).input, (elt).output) == 0);\
+  assert(bind_buffer2((down).d_input, (elt).d_output) == 0);\
 } while (0)
 
 #define CONNECT_TO_CONCAT(up, concat, j) \
 do {\
-  assert(link_buffer((concat).input[j], (up).output) == 0);\
-  assert(link_buffer((concat).d_input[j], (up).d_output) == 0);\
+  LOG(connect_up_concat);\
+  assert(bind_buffer2((concat).input[j], (up).output) == 0);\
+  if (j == 0) {\
+    assert(bind_buffer2((concat).d_output, (up).d_input) == 0);\
+  }\
+  assert(bind_buffer3((concat).d_input[j], (up).d_output, (concat).d_output, j) == 0);\
+} while (0)
+
+#define CONNECT_FROM_CONCAT(concat, down) \
+do {\
+  LOG(connect_concat_down);\
+  assert(bind_buffer2((down).input, (concat).output) == 0);\
+  assert(bind_buffer2((down).d_input, (concat).d_output) == 0);\
 } while (0)
 
 #define CONNECT_FROM_BRANCH_TO_ELT(branch, elt) \
 do {\
-  assert(link_buffer((elt).input[0], (branch).input) == 0);\
-  assert(link_buffer((branch).d_output[0], (elt).d_output) == 0);\
+  LOG(connect_branch_elt);\
+  assert(bind_buffer2((elt).input[0], (branch).input) == 0);\
+  assert(bind_buffer3((elt).d_output, (branch).d_output[0], (branch).d_input, 0) == 0);\
 } while (0)
 
 #define CONNECT_FROM_BRANCH_TO_CONCAT(branch, concat) \
 do {\
-  assert(link_buffer((concat).input[0], (branch).input) == 0);\
-  assert(link_buffer((concat).d_input[0], (branch).d_output[0]) == 0);\
+  LOG(connect_branch_concat);\
+  assert(bind_buffer2((concat).input[0], (branch).input) == 0);\
+  assert(bind_buffer2((concat).d_output, (branch).d_input) == 0);\
+  assert(bind_buffer3((concat).d_input[0], (branch).d_output[0], (concat).d_output, 0) == 0);\
 } while (0)
 
 // PARAM FUNCTIONS
@@ -167,9 +196,11 @@ do { param += get_bn_param(l, param); } while (0)
 #define GET_BIAS(l) \
 do { param += get_bias(l, param); } while (0)
 
+#define LEN_NAME 256
+
 typedef struct fc_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int in, out;
@@ -185,7 +216,6 @@ typedef struct fc_layer_s {
   gpu_mem input, d_input;
   gpu_mem output, d_output;
   gpu_mem weight, d_weight;
-
 #ifdef USE_CUDNN_FC
   gpu_mem ws_fwd, ws_bwd_data, ws_bwd_filter;
 #endif
@@ -195,7 +225,7 @@ typedef struct fc_layer_s {
 
 typedef struct conv_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int filter_height, filter_width;
   int pad_height, pad_width;
@@ -222,7 +252,7 @@ typedef struct conv_layer_s {
 
 typedef struct bn_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int channel, height, width;
@@ -246,7 +276,7 @@ typedef enum { RELU_T } act_type;
 
 typedef struct act_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int channel, height, width;
@@ -261,18 +291,17 @@ typedef struct act_layer_s {
   float fwd_t, bwd_t;
 } act_layer;
 
-#define MAX_IN 16
 typedef struct concat_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
-  int input_channel[MAX_IN];
+  int input_channel[FAN_MAX];
   int output_channel, height, width;
 
   int fan_in;
 
-  gpu_mem input[MAX_IN], d_input[MAX_IN];
+  gpu_mem input[FAN_MAX], d_input[FAN_MAX];
   gpu_mem output, d_output;
   
   float fwd_t, bwd_t;
@@ -282,7 +311,7 @@ typedef enum { ADD_T } elt_type;
 
 typedef struct elt_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int channel, height, width;
@@ -297,10 +326,9 @@ typedef struct elt_layer_s {
   float fwd_t;
 } elt_layer;
 
-#define MAX_OUT 16
 typedef struct branch_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int channel, height, width;
@@ -310,14 +338,14 @@ typedef struct branch_layer_s {
   cudnnOpTensorDescriptor_t op_desc;
 
   gpu_mem input, d_input;
-  gpu_mem d_output[MAX_OUT];
+  gpu_mem d_output[FAN_MAX];
   
   float bwd_t;
 } branch_layer;
 
 typedef struct bias_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int channel, height, width;
@@ -334,7 +362,7 @@ typedef enum {
 
 typedef struct pool_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int window_height, window_width;
   int pad_height, pad_width;
@@ -357,7 +385,7 @@ typedef struct pool_layer_s {
 
 typedef struct input_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int channel, height, width;
@@ -367,7 +395,7 @@ typedef struct input_layer_s {
 
 typedef struct softmax_layer_s {
   iterator_t iterator;
-  char name[256];
+  char name[LEN_NAME];
 
   int batch_size;
   int out;

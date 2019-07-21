@@ -16,26 +16,35 @@ ncclUniqueId nccl_id;
 
 cudaStream_t memory_stream[MAX_NDEV];
 ncclComm_t nccl_comm[MAX_NDEV];
-list_t memory_list[NUM_OBJECT_TYPE];
+
+struct _gpu_memory_object_group {
+  iterator_t iterator;
+  list_t mem_list;
+};
+
+typedef struct _gpu_memory_object_group *gpu_mem_group;
+
+list_t mem_group_list[NUM_OBJECT_TYPE];
 
 static const size_t size_of_cudnn_data_type[] = { 4, 8, 2, 1, 4, 4, 1, 4, 32 };
 
 #define distribute(n, dev) ( ((n) / num_devices) + ((dev) < (n) % num_devices) )
 
+#define resolve_params(type, args, argc) \
+do {\
+  va_list ap;\
+  va_start(ap, argc);\
+  for (int i = 0; i < argc; i++) {\
+    args[i] = va_arg(ap, type);\
+  }\
+  va_end(ap);\
+} while (0)
+
+#define check(expr) if (!(expr)) goto error
+
 ////////////////////////////////////////////////////////////
 // Abstract Device Memory Object
 ////////////////////////////////////////////////////////////
-
-static gpu_mem get_prev_rec(gpu_mem current, gpu_mem target)
-{
-  if (current->next == target) return target;
-  else return get_prev_rec(current->next, target);
-}
-
-static gpu_mem get_prev(gpu_mem mem)
-{
-  return get_prev_rec(mem, mem);
-}
 
 size_t data_type_size(gpu_mem mem)
 {
@@ -63,11 +72,10 @@ int __init_object_manager()
 {
   static bool initialized = false;
 
-  if (initialized) return -1;
-  else printf("initialize memory object manager\n");
+  check(!initialized);
 
   for (int type = 0; type < NUM_OBJECT_TYPE; type++) {
-    list_init(&memory_list[type]);
+    list_init(&mem_group_list[type]);
   }
 
   ncclGroupStart();
@@ -83,17 +91,24 @@ int __init_object_manager()
   initialized = true;
 
   return 0;
+
+error:
+  return -1;
 }
 
 int __finalize_object_manager()
 {
+  /*
   for (int type = 0; type < NUM_OBJECT_TYPE; type++) {
-    list_t *l = &memory_list[type];
-    list_iter(l, it) {
-      gpu_mem mem = list_data(struct _gpu_memory_object, it);
-      destroy_buffer(mem);
+    list_iter(&mem_group_list[type]) {
+      gpu_mem_group group = list_data(struct _gpu_memory_object_group, iterator);
+      list_iter(&group->mem_list) {
+        gpu_mem mem = list_data(struct _gpu_memory_object, iterator);
+        destroy_buffer(mem);
+      }
     }
   }
+  */
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -113,19 +128,14 @@ int create_buffer_data(
     gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
-  va_list ap;
 
-  va_start(ap, ndim);
-  for (int i = 0; i < ndim; i++) {
-    args[i] = va_arg(ap, int);
-  }
-  va_end(ap);
+  resolve_params(int, args, ndim);
 
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA;
   (*mem)->allocated = false;
@@ -139,27 +149,25 @@ int create_buffer_data(
     default:
       free(*mem);
       *mem = NULL;
-      return -1;
+      goto error;
   }
+
+error:
+  return -1;
 }
 
 int create_buffer_data_gradient(
     gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
-  va_list ap;
 
-  va_start(ap, ndim);
-  for (int i = 0; i < ndim; i++) {
-    args[i] = va_arg(ap, int);
-  }
-  va_end(ap);
+  resolve_params(int, args, ndim);
 
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = DATA_GRADIENT;
   (*mem)->allocated = false;
@@ -173,8 +181,11 @@ int create_buffer_data_gradient(
     default:
       free(*mem);
       *mem = NULL;
-      return -1;
+      goto error;
   }
+
+error:
+  return -1;
 }
 
 static int create_4d_weight(
@@ -184,19 +195,14 @@ int create_buffer_weight(
     gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
-  va_list ap;
 
-  va_start(ap, ndim);
-  for (int i = 0; i < ndim; i++) {
-    args[i] = va_arg(ap, int);
-  }
-  va_end(ap);
+  resolve_params(int, args, ndim);
 
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT;
   (*mem)->allocated = false;
@@ -210,27 +216,25 @@ int create_buffer_weight(
     default:
       free(*mem);
       *mem = NULL;
-      return -1;
+      goto error;
   }
+
+error:
+  return -1;
 }
 
 int create_buffer_weight_gradient(
     gpu_mem *mem, cudnnDataType_t data_type, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
-  va_list ap;
 
-  va_start(ap, ndim);
-  for (int i = 0; i < ndim; i++) {
-    args[i] = va_arg(ap, int);
-  }
-  va_end(ap);
+  resolve_params(int, args, ndim);
 
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = WEIGHT_GRADIENT;
   (*mem)->allocated = false;
@@ -244,8 +248,11 @@ int create_buffer_weight_gradient(
     default:
       free(*mem);
       *mem = NULL;
-      return -1;
+      goto error;
   }
+
+error:
+  return -1;
 }
 
 static void derive_bn_shape(
@@ -256,19 +263,14 @@ int create_buffer_bn_param(
     cudnnBatchNormMode_t mode, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
-  va_list ap;
 
-  va_start(ap, ndim);
-  for (int i = 0; i < ndim; i++) {
-    args[i] = va_arg(ap, int);
-  }
-  va_end(ap);
+  resolve_params(int, args, ndim);
 
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = BN_PARAM;
   (*mem)->allocated = false;
@@ -284,8 +286,11 @@ int create_buffer_bn_param(
     default:
       free(*mem);
       *mem = NULL;
-      return -1;
+      goto error;
   }
+
+error:
+  return -1;
 }
 
 int create_buffer_bn_param_gradient(
@@ -293,19 +298,14 @@ int create_buffer_bn_param_gradient(
     cudnnBatchNormMode_t mode, int ndim, ...)
 {
   int args[CUDNN_DIM_MAX];
-  va_list ap;
 
-  va_start(ap, ndim);
-  for (int i = 0; i < ndim; i++) {
-    args[i] = va_arg(ap, int);
-  }
-  va_end(ap);
+  resolve_params(int, args, ndim);
 
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = data_type;
   (*mem)->obj_type = BN_PARAM_GRADIENT;
   (*mem)->allocated = false;
@@ -321,19 +321,22 @@ int create_buffer_bn_param_gradient(
     default:
       free(*mem);
       *mem = NULL;
-      return -1;
+      goto error;
   }
+
+error:
+  return -1;
 }
 
 static int create_rawspace(gpu_mem mem, size_t size_in_bytes);
 
 int create_buffer_work_space(gpu_mem *mem, size_t size_in_bytes)
 {
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = 0;
   (*mem)->obj_type = WORK_SPACE;
   (*mem)->allocated = false;
@@ -341,15 +344,18 @@ int create_buffer_work_space(gpu_mem *mem, size_t size_in_bytes)
   assign_flags_from_object_type(*mem);
 
   return create_rawspace(*mem, size_in_bytes);
+
+error:
+  return -1;
 }
 
 int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes)
 {
-  if (mem == NULL || *mem != NULL) return -1;
+  check(mem);
   *mem = (gpu_mem)malloc(sizeof(struct _gpu_memory_object));
-  if (*mem == NULL) return -1;
+  check(*mem);
 
-  (*mem)->next = *mem;
+  (*mem)->parent = NULL;
   (*mem)->data_type = 0;
   (*mem)->obj_type = RESERVE_SPACE;
   (*mem)->allocated = false;
@@ -357,11 +363,15 @@ int create_buffer_reserve_space(gpu_mem *mem, size_t size_in_bytes)
   assign_flags_from_object_type(*mem);
 
   return create_rawspace(*mem, size_in_bytes);
+
+error:
+  return -1;
 }
 
+// FIXME: deprecated
 int destroy_buffer(gpu_mem mem)
 {
-  if (mem == NULL) return -1;
+  if (!mem) goto error;
 
   if (mem->filter_desc) {
     chkCUDNN(cudnnDestroyFilterDescriptor(mem->filter_desc));
@@ -372,19 +382,22 @@ int destroy_buffer(gpu_mem mem)
       chkCUDNN(cudnnDestroyTensorDescriptor(mem->tensor_desc[dev]));
     }
 
-    if (mem->dev_ptr[dev]) {
+    if (mem->dev_ptr[dev] && mem->allocated) {
       chkCUDA(cudaSetDevice(dev));
       chkCUDA(cudaFree(mem->dev_ptr[dev]));
     }
   }
 
-  get_prev(mem)->next = mem->next;
-
-  list_erase(&memory_list[mem->obj_type], &mem->iterator);
+  if (mem->parent) {
+    list_erase(mem->parent, &mem->iterator);
+  }
 
   free(mem);
 
   return 0;
+
+error:
+  return -1;
 }
 
 int create_4d_tensor(
@@ -409,13 +422,16 @@ int create_4d_tensor(
 
     mem->size_in_bytes[dev] = size_of_cudnn_data_type[data_type] * n_dev * c * h * w;
     mem->dev_ptr[dev] = NULL;
-    mem->allocated = false;
   }
-
-  list_push_back(&memory_list[mem->obj_type], &mem->iterator);
+  mem->allocated = false;
 
   return 0;
+
+error:
+  return -1;
 }
+
+static int alloc_buffer_internal(gpu_mem mem);
 
 int create_4d_weight(
     gpu_mem mem, cudnnDataType_t data_type, int k, int c, int h, int w)
@@ -442,16 +458,19 @@ int create_4d_weight(
           data_type, k, c, h, w));
 
     mem->size_in_bytes[dev] = size_in_bytes;
-
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaMalloc(&mem->dev_ptr[dev], size_in_bytes));
-    mem->allocated = true;
+    mem->dev_ptr[dev] = NULL;
   }
+  mem->allocated = false;
 
-  list_push_back(&memory_list[mem->obj_type], &mem->iterator);
+  check(alloc_buffer_internal(mem) == 0); // FIXME: add to list
 
   return 0;
+
+error:
+  return -1;
 }
+
+static int create_group(gpu_mem mem);
 
 int create_rawspace(gpu_mem mem, size_t size_in_bytes)
 {
@@ -464,12 +483,29 @@ int create_rawspace(gpu_mem mem, size_t size_in_bytes)
     mem->tensor_desc[dev] = NULL;
     mem->size_in_bytes[dev] = size_in_bytes;
     mem->dev_ptr[dev] = NULL;
-    mem->allocated = false;
+  }
+  mem->allocated = false;
+
+  static bool is_first = true;
+
+  if (is_first) {
+    create_group(mem);
+    is_first = false;
+  }
+  else {
+    list_t *l = &mem_group_list[mem->obj_type];
+
+    gpu_mem_group group =
+      list_first(l, struct _gpu_memory_object_group, iterator);
+
+    mem->parent = &group->mem_list;
+    list_push_back(mem->parent, &mem->iterator);
   }
 
-  list_push_back(&memory_list[mem->obj_type], &mem->iterator);
-
   return 0;
+
+error:
+  return -1;
 }
 
 void derive_bn_shape(cudnnBatchNormMode_t mode, int shape[], int ndim)
@@ -540,9 +576,178 @@ void assign_flags_from_object_type(gpu_mem mem)
 // Device Memory Management API
 ////////////////////////////////////////////////////////////
 
-int alloc_buffer(gpu_mem mem)
+int bind_buffer1(gpu_mem trg)
 {
-  if (mem->allocated) return -1;
+  LOG(begin);
+  check(!trg->parent);
+  LOG(passed_precondition);
+
+  check(create_group(trg) == 0);
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+int bind_buffer2(gpu_mem trg, gpu_mem inc)
+{
+  LOG(begin);
+  check(!trg->parent);
+  check(trg->obj_type == inc->obj_type);
+  LOG(passed_precondition);
+
+  if (!inc->parent) {
+    LOG(inc_is_not_allocated);
+    check(create_group(inc) == 0);
+  }
+
+  LOG(add_trg_to_group);
+  trg->parent = inc->parent;
+  list_push_back(trg->parent, &trg->iterator);
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+int bind_buffer3(gpu_mem trg, gpu_mem inc, gpu_mem exc, int j)
+{
+  LOG(begin);
+  check(!trg->parent);
+  check(trg->obj_type == inc->obj_type);
+
+  check(!inc->parent);
+  check(inc->obj_type == exc->obj_type);
+  LOG(passed_precondition);
+
+  gpu_mem_group dst_group = NULL;
+
+  list_t *l = &mem_group_list[trg->obj_type];
+
+  list_iter(l) {
+    gpu_mem_group group =
+      list_data(struct _gpu_memory_object_group, iterator);
+
+    if (&group->mem_list != exc->parent) {
+      if (j-- == 0) {
+        LOG(found_dst_group);
+        dst_group = group;
+        LOG(add_inc_to_group);
+        inc->parent = &dst_group->mem_list;
+        list_push_back(inc->parent, &inc->iterator);
+        break;
+      }
+    }
+  }
+
+  if (!dst_group) {
+    LOG(not_found_dst_group);
+    check(create_group(inc) == 0);
+  }
+
+  LOG(add_trg_to_group);
+  trg->parent = inc->parent;
+  list_push_back(trg->parent, &trg->iterator);
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+int create_group(gpu_mem mem)
+{
+  LOG(begin);
+  check(!mem->parent);
+  LOG(passed_precondition);
+
+  LOG(malloc_new_group);
+  gpu_mem_group new_group =
+    (gpu_mem_group)malloc(sizeof(struct _gpu_memory_object_group));
+  LOG(insert_new_group_to_list);
+  list_push_back(&mem_group_list[mem->obj_type], &new_group->iterator);
+  list_init(&new_group->mem_list);
+
+  mem->parent = &new_group->mem_list;
+  LOG(add_mem_to_group);
+  list_push_back(mem->parent, &mem->iterator);
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+static gpu_mem find_largest_buffer(list_t *mem_list);
+
+static int alloc_buffer_group(list_t *mem_list)
+{
+  LOG(begin);
+  gpu_mem max_mem = find_largest_buffer(mem_list);
+  LOG(found_largest_buffer);
+
+  check(alloc_buffer_internal(max_mem) == 0);
+
+  list_iter(mem_list) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, iterator);
+
+    LOG(copy_pointer);
+    for (int dev = 0; dev < num_devices; dev++) {
+      mem->dev_ptr[dev] = max_mem->dev_ptr[dev];
+    }
+    mem->allocated = true;
+  }
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+static int free_buffer_internal(gpu_mem mem);
+
+static int free_buffer_group(list_t *mem_list)
+{
+  list_iter(mem_list) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, iterator);
+
+    static bool is_first = true;
+
+    if (is_first) {
+      check(free_buffer_internal(mem) == 0);
+      is_first = false;
+    }
+
+    for (int dev = 0; dev < num_devices; dev++) {
+      mem->dev_ptr[dev] = NULL;
+    }
+    mem->allocated = false;
+  }
+
+  return 0;
+
+error:
+  return -1;
+}
+
+int alloc_buffer_internal(gpu_mem mem)
+{
+  LOG(begin);
+  check(mem);
+  check(!mem->allocated);
+  LOG(passed_precondition);
 
   for (int dev = 0; dev < num_devices; dev++) {
     mem->dev_ptr[dev] = NULL;
@@ -551,19 +756,18 @@ int alloc_buffer(gpu_mem mem)
   }
   mem->allocated = true;
 
-  for (gpu_mem tmp = mem->next; !tmp->allocated; tmp = tmp->next) {
-    for (int dev = 0; dev < num_devices; dev++) {
-      tmp->dev_ptr[dev] = mem->dev_ptr[dev];
-    }
-    tmp->allocated = true;
-  }
-
+  LOG(end);
   return 0;
+
+error:
+  LOG(error);
+  return -1;
 }
 
-int free_buffer(gpu_mem mem)
+int free_buffer_internal(gpu_mem mem)
 {
-  if (!mem->allocated) return -1;
+  check(mem);
+  check(mem->allocated);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -572,81 +776,116 @@ int free_buffer(gpu_mem mem)
   }
   mem->allocated = false;
 
-  for (gpu_mem tmp = mem->next; tmp->allocated; tmp = tmp->next) {
-    for (int dev = 0; dev < num_devices; dev++) {
-      tmp->dev_ptr[dev] = NULL;
-    }
-    tmp->allocated = false;
-  }
-
   return 0;
+
+error:
+  return -1;
 }
 
-int link_buffer(gpu_mem child, gpu_mem parent)
+gpu_mem find_largest_buffer(list_t *mem_list)
 {
-  if (child->next != child) return -1;
+  LOG(begin);
+  gpu_mem max_mem = NULL;
+  size_t max_size = 0;
 
-  child->next = parent->next;
-  parent->next = child;
+  list_iter(mem_list) {
+    gpu_mem mem = list_data(struct _gpu_memory_object, iterator);
 
-  return 0;
+    if (mem->size_in_bytes[0] > max_size) {
+      LOG(update_max);
+      max_mem = mem;
+      max_size = mem->size_in_bytes[0];
+    }
+  }
+
+  LOG(end);
+  return max_mem;
 }
 
-int alloc_work_space()
+int alloc_buffer(gpu_mem mem)
 {
-  list_t *l = &memory_list[WORK_SPACE];
+  LOG(begin);
+  check(mem);
 
-  size_t max_size_in_bytes = 0;
-
-  list_iter(l, it) {
-    gpu_mem mem = list_data(struct _gpu_memory_object, it);
-
-    if (mem->allocated) return -1;
-
-    if (max_size_in_bytes < mem->size_in_bytes[0]) {
-      max_size_in_bytes = mem->size_in_bytes[0];
+  if (!mem->allocated) {
+    LOG(allocate);
+    if (mem->parent) {
+      check(alloc_buffer_group(mem->parent) == 0);
+    }
+    else {
+      check(alloc_buffer_internal(mem) == 0);
     }
   }
 
-  void *dev_ptr[MAX_NDEV];
-
-  for (int dev = 0; dev < num_devices; dev++) {
-    dev_ptr[dev] = NULL;
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaMalloc(&dev_ptr[dev], max_size_in_bytes));
-  }
-
-  list_iter(l, it) {
-    gpu_mem mem = list_data(struct _gpu_memory_object, it);
-
-    for (int dev = 0; dev < num_devices; dev++) {
-      mem->dev_ptr[dev] = dev_ptr[dev];
-    }
-
-    mem->allocated = true;
-  }
-
+  LOG(end);
   return 0;
+
+error:
+  LOG(error);
+  return -1;
 }
 
-int alloc_reserve_space()
+int alloc_buffer_by_type(gpu_memory_object_t obj_type)
 {
-  list_t *l = &memory_list[RESERVE_SPACE];
+  LOG(begin);
+  list_t *l = &mem_group_list[obj_type];
 
-  list_iter(l, it) {
-    gpu_mem mem = list_data(struct _gpu_memory_object, it);
+  list_iter(l) {
+    gpu_mem_group group =
+      list_data(struct _gpu_memory_object_group, iterator);
 
-    if (mem->allocated) return -1;
-
-    for (int dev = 0; dev < num_devices; dev++) {
-      chkCUDA(cudaSetDevice(dev));
-      chkCUDA(cudaMalloc(&mem->dev_ptr[dev], mem->size_in_bytes[dev]));
-    }
-
-    mem->allocated = true;
+    check(alloc_buffer_group(&group->mem_list) == 0);
   }
 
+  LOG(end);
   return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+int free_buffer(gpu_mem mem)
+{
+  LOG(begin);
+  check(mem);
+
+  if (mem->allocated) {
+    LOG(release);
+    if (mem->parent) {
+      check(free_buffer_group(mem->parent) == 0);
+    }
+    else {
+      check(free_buffer_internal(mem) == 0);
+    }
+  }
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
+}
+
+int free_buffer_by_type(gpu_memory_object_t obj_type)
+{
+  LOG(begin);
+  list_t *l = &mem_group_list[obj_type];
+
+  list_iter(l) {
+    gpu_mem_group group =
+      list_data(struct _gpu_memory_object_group, iterator);
+
+    check(free_buffer_group(&group->mem_list) == 0);
+  }
+
+  LOG(end);
+  return 0;
+
+error:
+  LOG(error);
+  return -1;
 }
 
 ////////////////////////////////////////////////////////////
@@ -655,9 +894,10 @@ int alloc_reserve_space()
 
 int write_buffer(const gpu_mem dst, const void *src, bool synch)
 {
-  const char *host = (const char *)src;
+  if (!dst || !src) goto error;
+  if (!dst->allocated) goto error;
 
-  if (!dst->allocated) return -1;
+  const char *host = (const char *)src;
 
   if (dst->distributed) {
     for (int dev = 0; dev < num_devices; dev++) {
@@ -675,8 +915,6 @@ int write_buffer(const gpu_mem dst, const void *src, bool synch)
       }
       // MPI_Barrier()
     }
-
-    return 0;
   }
   else if (dst->consistent) {
     for (int dev = 0; dev < num_devices; dev++) {
@@ -692,18 +930,23 @@ int write_buffer(const gpu_mem dst, const void *src, bool synch)
       }
       // MPI_Barrier()
     }
-
-    return 0;
+  }
+  else {
+    goto error;
   }
 
+  return 0;
+
+error:
   return -1;
 }
 
 int read_buffer(void *dst, const gpu_mem src, bool synch)
 {
-  char *host = (char *)dst;
+  if (!src || !dst) goto error;
+  if (!src->allocated) goto error;
 
-  if (!src->allocated) return -1;
+  char *host = (char *)dst;
 
   if (src->distributed) {
     for (int dev = 0; dev < num_devices; dev++) {
@@ -721,8 +964,6 @@ int read_buffer(void *dst, const gpu_mem src, bool synch)
       }
       // MPI_Barrier()
     }
-
-    return 0;
   }
   else if (src->consistent) {
     for (int dev = 0; dev < 1; dev++) {
@@ -738,10 +979,14 @@ int read_buffer(void *dst, const gpu_mem src, bool synch)
       }
       // MPI_Barrier()
     }
-
-    return 0;
+  }
+  else {
+    goto error;
   }
 
+  return 0;
+
+error:
   return -1;
 }
 
@@ -749,9 +994,9 @@ static bool is_mem_equivalent(const gpu_mem a, const gpu_mem b);
 
 int copy_buffer(const gpu_mem dst, const gpu_mem src, bool synch)
 {
-  if (!dst->allocated || !src->allocated) return -1;
-
-  if (!is_mem_equivalent(dst, src)) return -1;
+  if (!dst || !src) goto error;
+  if (!dst->allocated || !src->allocated) goto error;
+  if (!is_mem_equivalent(dst, src)) goto error;
 
   if (src->distributed) {
     for (int dev = 0; dev < num_devices; dev++) {
@@ -781,6 +1026,9 @@ int copy_buffer(const gpu_mem dst, const gpu_mem src, bool synch)
   }
 
   return 0;
+
+error:
+  return -1;
 }
 
 bool is_mem_equivalent(const gpu_mem a, const gpu_mem b)
@@ -791,11 +1039,7 @@ bool is_mem_equivalent(const gpu_mem a, const gpu_mem b)
     if (a->dim[i] != b->dim[i]) return false;
   }
 
-  if (a->reserved != b->reserved) return false;
-  if (a->distributed != b->distributed) return false;
-  if (a->consistent != b->consistent) return false;
-
-  return true;
+  return a->obj_type == b->obj_type;
 }
 
 int all_reduce_buffer(const gpu_mem mem, bool synch)

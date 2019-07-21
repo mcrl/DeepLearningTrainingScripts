@@ -29,8 +29,8 @@ typedef enum {
 } gpu_memory_object_t;
 
 struct _gpu_memory_object {
+  list_t *parent;
   iterator_t iterator;
-  struct _gpu_memory_object *next;
 
   void *dev_ptr[MAX_NDEV];
   size_t size_in_bytes[MAX_NDEV];
@@ -116,15 +116,19 @@ int destroy_buffer(gpu_mem mem);
 // Device Memory Management API
 ////////////////////////////////////////////////////////////
 
+int bind_buffer1(gpu_mem trg);
+
+int bind_buffer2(gpu_mem trg, gpu_mem inc);
+
+int bind_buffer3(gpu_mem trg, gpu_mem inc, gpu_mem exc, int j);
+
 int alloc_buffer(gpu_mem mem);
+
+int alloc_buffer_by_type(gpu_memory_object_t obj_type);
 
 int free_buffer(gpu_mem mem);
 
-int link_buffer(gpu_mem child, gpu_mem parent);
-
-int alloc_work_space(void);
-
-int alloc_reserve_space(void);
+int free_buffer_by_type(gpu_memory_object_t obj_type);
 
 ////////////////////////////////////////////////////////////
 // Memory Transfer API

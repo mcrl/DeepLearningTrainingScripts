@@ -615,7 +615,7 @@ void resnet_backward()
 
 void resnet_connect()
 {
-  CONNECT(net.input, net.conv1);
+  CONNECT_FROM_INPUT(net.input, net.conv1);
   CONNECT(net.conv1, net.conv1_bn);
   CONNECT(net.conv1_bn, net.conv1_relu);
   CONNECT(net.conv1_relu, net.pool1);
@@ -638,7 +638,7 @@ void resnet_connect()
 
       CONNECT_TO_ELT(net.conv2_branch_bn, net.conv2_add[i], 0);
       CONNECT_TO_ELT(net.conv2_bn[i][2], net.conv2_add[i], 1);
-      CONNECT(net.conv2_add[i], net.conv2_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv2_add[i], net.conv2_relu[i][2]);
     }
     else {
       CONNECT(net.conv2_relu[i-1][2], net.branch2[i]);
@@ -654,7 +654,7 @@ void resnet_connect()
       CONNECT(net.conv2[i][2], net.conv2_bn[i][2]);
 
       CONNECT_TO_ELT(net.conv2_bn[i][2], net.conv2_add[i], 1);
-      CONNECT(net.conv2_add[i], net.conv2_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv2_add[i], net.conv2_relu[i][2]);
     }
   }
 
@@ -676,7 +676,7 @@ void resnet_connect()
 
       CONNECT_TO_ELT(net.conv3_branch_bn, net.conv3_add[i], 0);
       CONNECT_TO_ELT(net.conv3_bn[i][2], net.conv3_add[i], 1);
-      CONNECT(net.conv3_add[i], net.conv3_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv3_add[i], net.conv3_relu[i][2]);
     }
     else {
       CONNECT(net.conv3_relu[i-1][2], net.branch3[i]);
@@ -692,7 +692,7 @@ void resnet_connect()
       CONNECT(net.conv3[i][2], net.conv3_bn[i][2]);
 
       CONNECT_TO_ELT(net.conv3_bn[i][2], net.conv3_add[i], 1);
-      CONNECT(net.conv3_add[i], net.conv3_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv3_add[i], net.conv3_relu[i][2]);
     }
   }
 
@@ -714,7 +714,7 @@ void resnet_connect()
 
       CONNECT_TO_ELT(net.conv4_branch_bn,  net.conv4_add[i], 0);
       CONNECT_TO_ELT(net.conv4_bn[i][2], net.conv4_add[i], 1);
-      CONNECT(net.conv4_add[i], net.conv4_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv4_add[i], net.conv4_relu[i][2]);
     }
     else {
       CONNECT(net.conv4_relu[i-1][2], net.branch4[i]);
@@ -730,7 +730,7 @@ void resnet_connect()
       CONNECT(net.conv4[i][2], net.conv4_bn[i][2]);
 
       CONNECT_TO_ELT(net.conv4_bn[i][2], net.conv4_add[i], 1);
-      CONNECT(net.conv4_add[i], net.conv4_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv4_add[i], net.conv4_relu[i][2]);
     }
   }
 
@@ -752,7 +752,7 @@ void resnet_connect()
 
       CONNECT_TO_ELT(net.conv5_branch_bn, net.conv5_add[i], 0);
       CONNECT_TO_ELT(net.conv5_bn[i][2], net.conv5_add[i], 1);
-      CONNECT(net.conv5_add[i], net.conv5_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv5_add[i], net.conv5_relu[i][2]);
     }
     else {
       CONNECT(net.conv5_relu[i-1][2], net.branch5[i]);
@@ -768,15 +768,13 @@ void resnet_connect()
       CONNECT(net.conv5[i][2], net.conv5_bn[i][2]);
 
       CONNECT_TO_ELT(net.conv5_bn[i][2], net.conv5_add[i], 1);
-      CONNECT(net.conv5_add[i], net.conv5_relu[i][2]);
+      CONNECT_FROM_ELT(net.conv5_add[i], net.conv5_relu[i][2]);
     }
   }
 
   CONNECT(net.conv5_relu[B3-1][2], net.pool2);
   CONNECT(net.pool2, net.fc);
   CONNECT_WITH_BIAS(net.fc, net.bias, net.softmax);
-
-  alloc_work_space();
 }
 
 #define RESNET_LAYER(FUNC) \

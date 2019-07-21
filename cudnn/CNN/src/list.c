@@ -19,6 +19,8 @@ void list_erase(list_t *l, iterator_t *it)
 {
   it->prev->next = it->next;
   it->next->prev = it->prev;
+
+  l->size--;
 }
 
 void list_push_back(list_t *l, iterator_t *it)

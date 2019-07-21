@@ -186,6 +186,7 @@ void vgg_load_param(float *param)
   VGG_PARAM(LOAD);
 }
 
+
 void vgg_init_param(float *param)
 {
   VGG_PARAM(INIT);
@@ -204,49 +205,51 @@ void vgg_copy_input(float *data_in, int *label_in)
 
 void vgg_forward()
 {
+  LOG(_);
   for (int i = 0, j = 0; i < 13; i++) {
-    train_fwd_conv_layer(&net.conv[i]);
-    train_fwd_bias_layer(&net.bias[i]);
-    train_fwd_act_layer(&net.relu[i]);
+    train_fwd_conv_layer(&net.conv[i]); LOG(_);
+    train_fwd_bias_layer(&net.bias[i]); LOG(_);
+    train_fwd_act_layer(&net.relu[i]); LOG(_);
 
     if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      train_fwd_pool_layer(&net.pool[j]);
+      train_fwd_pool_layer(&net.pool[j]); LOG(_);
       j++;
     }
   }
 
   for (int i = 0; i < 2; i++) {
-    train_fwd_fc_layer(&net.fc[i]);
-    train_fwd_bias_layer(&net.fc_bias[i]);
-    train_fwd_act_layer(&net.fc_relu[i]);
+    train_fwd_fc_layer(&net.fc[i]); LOG(_);
+    train_fwd_bias_layer(&net.fc_bias[i]); LOG(_);
+    train_fwd_act_layer(&net.fc_relu[i]); LOG(_);
   }
 
-  train_fwd_fc_layer(&net.fc[2]);
-  train_fwd_bias_layer(&net.fc_bias[2]);
-  train_fwd_softmax_layer(&net.softmax);
+  train_fwd_fc_layer(&net.fc[2]); LOG(_);
+  train_fwd_bias_layer(&net.fc_bias[2]); LOG(_);
+  train_fwd_softmax_layer(&net.softmax); LOG(_);
 }
 
 void vgg_backward()
 {
-  train_bwd_softmax_layer(&net.softmax);
-  train_bwd_bias_layer(&net.fc_bias[2]);
-  train_bwd_fc_layer(&net.fc[2]);
+  LOG(_);
+  train_bwd_softmax_layer(&net.softmax); LOG(_);
+  train_bwd_bias_layer(&net.fc_bias[2]); LOG(_);
+  train_bwd_fc_layer(&net.fc[2]); LOG(_);
 
   for (int i = 1; i >= 0; i--) {
-    train_bwd_act_layer(&net.fc_relu[i]);
-    train_bwd_bias_layer(&net.fc_bias[i]);
-    train_bwd_fc_layer(&net.fc[i]);
+    train_bwd_act_layer(&net.fc_relu[i]); LOG(_);
+    train_bwd_bias_layer(&net.fc_bias[i]); LOG(_);
+    train_bwd_fc_layer(&net.fc[i]); LOG(_);
   }
 
   for (int i = 12, j = 4; i >= 0; i--) {
     if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      train_bwd_pool_layer(&net.pool[j]);
+      train_bwd_pool_layer(&net.pool[j]); LOG(_);
       j--;
     }
 
-    train_bwd_act_layer(&net.relu[i]);
-    train_bwd_bias_layer(&net.bias[i]);
-    train_bwd_conv_layer(&net.conv[i]);
+    train_bwd_act_layer(&net.relu[i]); LOG(_);
+    train_bwd_bias_layer(&net.bias[i]); LOG(_);
+    train_bwd_conv_layer(&net.conv[i]); LOG(_);
   }
 }
 
@@ -254,7 +257,7 @@ void vgg_connect()
 {
   for (int i = 0, j = 0; i < 13; i++) {
     if (i == 0) {
-      CONNECT(net.input, net.conv[i]);
+      CONNECT_FROM_INPUT(net.input, net.conv[i]);
     }
     else if (i == 2 || i == 4 || i == 7 || i == 10 || i == 13) {
       CONNECT(net.pool[j], net.conv[i]);
@@ -279,8 +282,6 @@ void vgg_connect()
   }
 
   CONNECT_WITH_BIAS(net.fc[2], net.fc_bias[2], net.softmax);
-
-  alloc_work_space();
 }
 
 #define VGG_LAYER(FUNC) \
@@ -325,6 +326,8 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
   vgg_init(params.batch_size);
   vgg_connect();
+
+  alloc_buffer_by_type(WORK_SPACE);
 
   int num_batches = num_train_image / params.batch_size;
   fprintf(stderr, "total iteration : %d\n", num_batches);

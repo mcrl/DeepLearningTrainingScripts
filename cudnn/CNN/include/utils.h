@@ -13,8 +13,22 @@
 
 #define M_PI 3.14159265358979323846
 
-#define MAX(a, b) (((a) < (b)) ? (b) : (a))
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) ( ((a) < (b)) ? (b) : (a) )
+#define MIN(a, b) ( ((a) < (b)) ? (a) : (b) )
+
+#define N_ARGS(...) N_ARGS_(__VA_ARGS__, N_RSEQ_())
+#define N_ARGS_(...) N_ARG_(__VA_ARGS__)
+#define N_ARG_(_1, _2, _3, _4, _5, _6, _7, _8, N, ...) N
+#define N_RSEQ_() 8, 7, 6, 5, 4, 3, 2, 1, 0
+
+//#define USE_LOG
+#define LOG_FILE ( stderr )
+
+#ifdef USE_LOG
+#define LOG(msg) fprintf(LOG_FILE, "[%s:%d] %s() %s\n", __FILE__, __LINE__, __func__, #msg)
+#else
+#define LOG(msg)
+#endif // USE_LOG
 
 #define chkCUDA(exp) \
   do {\

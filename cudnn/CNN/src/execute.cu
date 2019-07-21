@@ -32,6 +32,7 @@ do {\
   assert(mem);\
   assert(test_func(mem));\
   assert((mem)->allocated);\
+  fprintf(stderr, "%s(%p) : input\n", #mem, mem->dev_ptr[0]);\
 } while (0)
 
 #define test_output(test_func, mem) \
@@ -42,6 +43,7 @@ do {\
     alloc_buffer(mem);\
     assert((mem)->allocated);\
   }\
+  fprintf(stderr, "%s(%p) : output\n", #mem, mem->dev_ptr[0]);\
 } while (0)
 
 ////////////////////////////////////////////////////////////
@@ -53,7 +55,6 @@ int __init_stream_executer()
   static bool initialized = false;
 
   if (initialized) return -1;
-  else printf("initialize stream executer\n");
 
   chkCUDA(cudaGetDeviceCount(&num_devices));
 
@@ -98,6 +99,7 @@ int execute_act_bwd(
     cudnnActivationDescriptor_t actDesc,
     gpu_mem y, gpu_mem dy, gpu_mem x, gpu_mem dx)
 {
+  LOG(begin);
   test_input(is_data, y);
   test_input(is_data_grad, dy);
   test_input(is_data, x);
@@ -121,6 +123,7 @@ int execute_act_bwd(
           dx->dev_ptr[dev]));
   }
 
+  LOG(end);
   return 0;
 }
 
@@ -128,6 +131,7 @@ int execute_act_fwd(
     cudnnActivationDescriptor_t actDesc,
     gpu_mem x, gpu_mem y)
 {
+  LOG(begin);
   test_input(is_data, x);
   test_output(is_data, y);
 
@@ -145,6 +149,7 @@ int execute_act_fwd(
           y->dev_ptr[dev]));
   }
 
+  LOG(end);
   return 0;
 }
 
@@ -156,14 +161,10 @@ int execute_bn_bwd(
     gpu_mem w, gpu_mem dw, gpu_mem db,
     gpu_mem s_mean, gpu_mem s_var)
 {
+  LOG(begin);
   test_input(is_data, x);
   test_input(is_data_grad, dy);
   test_output(is_data_grad, dx);
-  test_input(is_bn_param, w);
-  test_output(is_bn_param_grad, dw);
-  test_output(is_bn_param_grad, db);
-  test_output(is_bn_param, s_mean);
-  test_output(is_bn_param, s_var);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -190,6 +191,7 @@ int execute_bn_bwd(
           s_var->dev_ptr[dev]));
   }
 
+  LOG(end);
   return 0;
 }
 
@@ -200,14 +202,9 @@ int execute_bn_fwd(
     gpu_mem r_mean, gpu_mem r_var,
     gpu_mem s_mean, gpu_mem s_var)
 {
+  LOG(begin);
   test_input(is_data, x);
   test_output(is_data, y);
-  test_input(is_bn_param, w);
-  test_input(is_bn_param, b);
-  test_output(is_bn_param, r_mean);
-  test_output(is_bn_param, r_var);
-  test_output(is_bn_param, s_mean);
-  test_output(is_bn_param, s_var);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -232,12 +229,14 @@ int execute_bn_fwd(
           s_var->dev_ptr[dev]));
   }
 
+  LOG(end);
   return 0;
 }
 
 /* Bias */
 int execute_bias_bwd(gpu_mem dy, gpu_mem db)
 {
+  LOG(begin);
   test_input(is_data_grad, dy);
   test_output(is_weight_grad, db);
 
@@ -254,6 +253,7 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
           db->dev_ptr[dev]));
   }
 
+  LOG(end);
   if (num_nodes * num_devices == 1) return 0;
 
   for (int dev = 0; dev < num_devices; dev++) {
@@ -266,6 +266,7 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
 
 int execute_bias_fwd(gpu_mem b, gpu_mem y)
 {
+  LOG(begin);
   test_input(is_weight, b);
   test_output(is_data, y);
 
@@ -282,6 +283,7 @@ int execute_bias_fwd(gpu_mem b, gpu_mem y)
           y->dev_ptr[dev]));
   }
 
+  LOG(end);
   return 0;
 }
 
@@ -290,6 +292,7 @@ int execute_branch_bwd(
     cudnnOpTensorDescriptor_t opDesc,
     int fan_out, gpu_mem dy[], gpu_mem dx)
 {
+  LOG(begin);
   assert(fan_out > 1);
   for (int i = 0; i < fan_out; i++) {
     test_input(is_data_grad, dy[i]);
@@ -324,6 +327,7 @@ int execute_branch_bwd(
     }
   }
 
+  LOG(end);
   return 0;
 }
 
@@ -334,6 +338,7 @@ int execute_conv_bwd_data(
     gpu_mem w, gpu_mem dy,
     gpu_mem dx, gpu_mem workSpace)
 {
+  LOG(begin);
   test_input(is_weight, w);
   test_input(is_data_grad, dy);
   test_output(is_data_grad, dx);
@@ -358,6 +363,7 @@ int execute_conv_bwd_data(
           dx->dev_ptr[dev]));
   }
 
+  LOG(end);
   return 0;
 }
 
@@ -367,6 +373,7 @@ int execute_conv_bwd_filter(
     gpu_mem x, gpu_mem dy,
     gpu_mem dw, gpu_mem workSpace)
 {
+  LOG(begin);
   test_input(is_data, x);
   test_input(is_data_grad, dy);
   test_output(is_weight_grad, dw);
@@ -391,6 +398,7 @@ int execute_conv_bwd_filter(
           dw->dev_ptr[dev]));
   }
 
+  LOG(end);
   if (num_nodes * num_devices == 1) return 0;
 
   for (int dev = 0; dev < num_devices; dev++) {
@@ -1169,17 +1177,16 @@ __global__ void cuda_set_label(
 int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
 {
   assert(fan_in > 1);
+  test_input(is_data_grad, dy);
   for (int i = 0; i < fan_in; i++) {
-    test_input(is_data_grad, dx[i]);
+    test_output(is_data_grad, dx[i]);
   }
-  test_output(is_data_grad, dy);
 
   int block_size = 256;
 
   for (int dev = 0; dev < num_devices; dev++) {
     int batch_size = distribute(dy->dim[0], dev);
     int grid_size = (batch_size * dy->dim[1] * dy->dim[2] * dy->dim[3] + block_size - 1) / block_size;
-
     chkCUDA(cudaSetDevice(dev));
 
     if (fan_in == 2) {
@@ -1235,14 +1242,13 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
   for (int i = 0; i < fan_in; i++) {
     test_input(is_data, x[i]);
   }
-  test_input(is_data, y);
+  test_output(is_data, y);
 
   int block_size = 256;
 
   for (int dev = 0; dev < num_devices; dev++) {
     int batch_size = distribute(y->dim[0], dev);
     int grid_size = (batch_size * y->dim[1] * y->dim[2] * y->dim[3] + block_size - 1) / block_size;
-
     chkCUDA(cudaSetDevice(dev));
 
     if (fan_in == 2) {
@@ -1304,7 +1310,6 @@ int execute_set_label(gpu_mem l, gpu_mem dy)
     int batch_size = distribute(l->dim[0], dev);
     int class_size = l->dim[1];
     int grid_size = (batch_size * class_size + block_size - 1) / block_size;
-
     chkCUDA(cudaSetDevice(dev));
 
     cuda_set_label<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
