@@ -5,6 +5,7 @@
 #include <cuda.h>
 #include <cudnn.h>
 #include <cublas_v2.h>
+#include <mpi.h>
 
 #include "execute.h"
 #include "memory.h"
@@ -27,12 +28,17 @@ static const float zero_float32 = 0.0;
 
 #define distribute(n, dev) ( ((n) / num_devices) + ((dev) < (n) % num_devices) )
 
+#define distribute_len(n, dev) \
+  ( ((n) / (num_nodes * num_devices)) + ((dev) < (n) % (num_nodes * num_devices)) )
+
+#define distribute_ofs(n, dev) \
+  ( ((n) / (num_nodes * num_devices) * (node_id * num_devices + (dev))) + MIN(node_id * num_devices + (dev), (n) % (num_nodes * num_devices)) )
+
 #define test_input(test_func, mem) \
 do {\
   assert(mem);\
   assert(test_func(mem));\
   assert((mem)->allocated);\
-  fprintf(stderr, "%s(%p) : input\n", #mem, mem->dev_ptr[0]);\
 } while (0)
 
 #define test_output(test_func, mem) \
@@ -43,7 +49,6 @@ do {\
     alloc_buffer(mem);\
     assert((mem)->allocated);\
   }\
-  fprintf(stderr, "%s(%p) : output\n", #mem, mem->dev_ptr[0]);\
 } while (0)
 
 ////////////////////////////////////////////////////////////
@@ -60,8 +65,6 @@ int __init_stream_executer()
 
   num_devices = MIN(num_devices, MAX_NDEV);
 
-  printf("num_devices : %d\n", num_devices);
-
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaStreamCreate(&kernel_stream[dev]));
@@ -74,6 +77,10 @@ int __init_stream_executer()
   }
 
   initialized = true;
+
+  if (node_id == 0) {
+    printf("num_devices : %d\n", num_devices);
+  }
 
   return 0;
 }
@@ -99,7 +106,6 @@ int execute_act_bwd(
     cudnnActivationDescriptor_t actDesc,
     gpu_mem y, gpu_mem dy, gpu_mem x, gpu_mem dx)
 {
-  LOG(begin);
   test_input(is_data, y);
   test_input(is_data_grad, dy);
   test_input(is_data, x);
@@ -123,7 +129,6 @@ int execute_act_bwd(
           dx->dev_ptr[dev]));
   }
 
-  LOG(end);
   return 0;
 }
 
@@ -131,7 +136,6 @@ int execute_act_fwd(
     cudnnActivationDescriptor_t actDesc,
     gpu_mem x, gpu_mem y)
 {
-  LOG(begin);
   test_input(is_data, x);
   test_output(is_data, y);
 
@@ -149,7 +153,6 @@ int execute_act_fwd(
           y->dev_ptr[dev]));
   }
 
-  LOG(end);
   return 0;
 }
 
@@ -161,10 +164,14 @@ int execute_bn_bwd(
     gpu_mem w, gpu_mem dw, gpu_mem db,
     gpu_mem s_mean, gpu_mem s_var)
 {
-  LOG(begin);
   test_input(is_data, x);
   test_input(is_data_grad, dy);
   test_output(is_data_grad, dx);
+  test_input(is_bn_param, w);
+  test_output(is_bn_param_grad, dw);
+  test_output(is_bn_param_grad, db);
+  test_output(is_bn_param, s_mean);
+  test_output(is_bn_param, s_var);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -191,7 +198,6 @@ int execute_bn_bwd(
           s_var->dev_ptr[dev]));
   }
 
-  LOG(end);
   return 0;
 }
 
@@ -202,9 +208,14 @@ int execute_bn_fwd(
     gpu_mem r_mean, gpu_mem r_var,
     gpu_mem s_mean, gpu_mem s_var)
 {
-  LOG(begin);
   test_input(is_data, x);
   test_output(is_data, y);
+  test_input(is_bn_param, w);
+  test_input(is_bn_param, b);
+  test_output(is_bn_param, r_mean);
+  test_output(is_bn_param, r_var);
+  test_output(is_bn_param, s_mean);
+  test_output(is_bn_param, s_var);
 
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
@@ -229,14 +240,12 @@ int execute_bn_fwd(
           s_var->dev_ptr[dev]));
   }
 
-  LOG(end);
   return 0;
 }
 
 /* Bias */
 int execute_bias_bwd(gpu_mem dy, gpu_mem db)
 {
-  LOG(begin);
   test_input(is_data_grad, dy);
   test_output(is_weight_grad, db);
 
@@ -253,20 +262,15 @@ int execute_bias_bwd(gpu_mem dy, gpu_mem db)
           db->dev_ptr[dev]));
   }
 
-  LOG(end);
   if (num_nodes * num_devices == 1) return 0;
 
-  for (int dev = 0; dev < num_devices; dev++) {
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
-  }
+  synch_comp();
 
   return all_reduce_buffer(db, false);
 }
 
 int execute_bias_fwd(gpu_mem b, gpu_mem y)
 {
-  LOG(begin);
   test_input(is_weight, b);
   test_output(is_data, y);
 
@@ -283,7 +287,6 @@ int execute_bias_fwd(gpu_mem b, gpu_mem y)
           y->dev_ptr[dev]));
   }
 
-  LOG(end);
   return 0;
 }
 
@@ -292,7 +295,6 @@ int execute_branch_bwd(
     cudnnOpTensorDescriptor_t opDesc,
     int fan_out, gpu_mem dy[], gpu_mem dx)
 {
-  LOG(begin);
   assert(fan_out > 1);
   for (int i = 0; i < fan_out; i++) {
     test_input(is_data_grad, dy[i]);
@@ -327,7 +329,6 @@ int execute_branch_bwd(
     }
   }
 
-  LOG(end);
   return 0;
 }
 
@@ -338,7 +339,6 @@ int execute_conv_bwd_data(
     gpu_mem w, gpu_mem dy,
     gpu_mem dx, gpu_mem workSpace)
 {
-  LOG(begin);
   test_input(is_weight, w);
   test_input(is_data_grad, dy);
   test_output(is_data_grad, dx);
@@ -363,7 +363,6 @@ int execute_conv_bwd_data(
           dx->dev_ptr[dev]));
   }
 
-  LOG(end);
   return 0;
 }
 
@@ -373,7 +372,6 @@ int execute_conv_bwd_filter(
     gpu_mem x, gpu_mem dy,
     gpu_mem dw, gpu_mem workSpace)
 {
-  LOG(begin);
   test_input(is_data, x);
   test_input(is_data_grad, dy);
   test_output(is_weight_grad, dw);
@@ -398,13 +396,9 @@ int execute_conv_bwd_filter(
           dw->dev_ptr[dev]));
   }
 
-  LOG(end);
   if (num_nodes * num_devices == 1) return 0;
 
-  for (int dev = 0; dev < num_devices; dev++) {
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
-  }
+  synch_comp();
 
   return all_reduce_buffer(dw, false);
 }
@@ -457,6 +451,9 @@ int execute_get_conv_bwd_data_algo(
         0,
         algo));
 
+  // FIXME: hard coded for a while
+  if ((int)(*algo) == 3) *((int *)algo) = 4;
+
   return 0;
 }
 
@@ -474,6 +471,13 @@ int execute_get_conv_bwd_data_ws_size(
         dx->tensor_desc[0],
         algo,
         ws_size));
+
+#if defined(USE_LOG)
+  // FIXME: remove this statement before commit to remote repo
+  fprintf(stderr, "%s: [algo=%d] %d KB (%d MB)\n",
+      __func__, (int)algo,
+      (int)(*ws_size / 1024), (int)(*ws_size / 1024 / 1024));
+#endif
 
   return 0;
 }
@@ -493,6 +497,9 @@ int execute_get_conv_bwd_filter_algo(
         0,
         algo));
 
+  // FIXME: hard coded for a while
+  if ((int)(*algo) == 2) *((int *)algo) = 3;
+
   return 0;
 }
 
@@ -510,6 +517,13 @@ int execute_get_conv_bwd_filter_ws_size(
         dw->filter_desc,
         algo,
         ws_size));
+
+#if defined(USE_LOG)
+  // FIXME: remove this statement before commit to remote repo
+  fprintf(stderr, "%s: [algo=%d] %d KB (%d MB)\n",
+      __func__, (int)algo,
+      (int)(*ws_size / 1024), (int)(*ws_size / 1024 / 1024));
+#endif
 
   return 0;
 }
@@ -529,6 +543,9 @@ int execute_get_conv_fwd_algo(
         0,
         algo));
 
+  // FIXME: hard coded for a while
+  if ((int)(*algo) == 5) *((int *)algo) = 6;
+
   return 0;
 }
 
@@ -546,6 +563,13 @@ int execute_get_conv_fwd_ws_size(
         y->tensor_desc[0],
         algo,
         ws_size));
+
+#if defined(USE_LOG)
+  // FIXME: remove this statement before commit to remote repo
+  fprintf(stderr, "%s: [algo=%d] %d KB (%d MB)\n",
+      __func__, (int)algo,
+      (int)(*ws_size / 1024), (int)(*ws_size / 1024 / 1024));
+#endif
 
   return 0;
 }
@@ -711,7 +735,7 @@ int execute_linear_bwd_data(gpu_mem w, gpu_mem dy, gpu_mem dx)
     chkCUBLAS(cublasSgemm(
           cublas_handle[dev],
           CUBLAS_OP_N, CUBLAS_OP_N,
-          m, distribute(n, dev), k,
+          m, distribute_len(n, dev), k,
           __1,
           (float *)w->dev_ptr[dev], m,
           (float *)dy->dev_ptr[dev], k,
@@ -738,7 +762,7 @@ int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw)
     chkCUBLAS(cublasSgemm(
           cublas_handle[dev],
           CUBLAS_OP_N, CUBLAS_OP_T,
-          m, n, distribute(k, dev),
+          m, n, distribute_len(k, dev),
           __1,
           (float *)x->dev_ptr[dev], m,
           (float *)dy->dev_ptr[dev], n,
@@ -748,10 +772,7 @@ int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw)
 
   if (num_nodes * num_devices == 1) return 0;
 
-  for (int dev = 0; dev < num_devices; dev++) {
-    chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
-  }
+  synch_comp();
 
   return all_reduce_buffer(dw, false);
 }
@@ -772,7 +793,7 @@ int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y)
     chkCUBLAS(cublasSgemm(
           cublas_handle[dev],
           CUBLAS_OP_T, CUBLAS_OP_N,
-          m, distribute(n, dev), k,
+          m, distribute_len(n, dev), k,
           __1,
           (float *)w->dev_ptr[dev], k,
           (float *)x->dev_ptr[dev], k,
@@ -784,7 +805,7 @@ int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y)
 }
 
 /* Update Weight */
-int execute_apply_gradient(
+int execute_gradient_descent(
     const float learning_rate, gpu_mem dw, gpu_mem w)
 {
   test_input(is_weight_grad_or_param_grad, dw);
@@ -1185,7 +1206,7 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
   int block_size = 256;
 
   for (int dev = 0; dev < num_devices; dev++) {
-    int batch_size = distribute(dy->dim[0], dev);
+    int batch_size = distribute_len(dy->dim[0], dev);
     int grid_size = (batch_size * dy->dim[1] * dy->dim[2] * dy->dim[3] + block_size - 1) / block_size;
     chkCUDA(cudaSetDevice(dev));
 
@@ -1247,7 +1268,7 @@ int execute_concat_fwd(int fan_in, gpu_mem x[], gpu_mem y)
   int block_size = 256;
 
   for (int dev = 0; dev < num_devices; dev++) {
-    int batch_size = distribute(y->dim[0], dev);
+    int batch_size = distribute_len(y->dim[0], dev);
     int grid_size = (batch_size * y->dim[1] * y->dim[2] * y->dim[3] + block_size - 1) / block_size;
     chkCUDA(cudaSetDevice(dev));
 
@@ -1307,7 +1328,7 @@ int execute_set_label(gpu_mem l, gpu_mem dy)
   int block_size = 256;
 
   for (int dev = 0; dev < num_devices; dev++) {
-    int batch_size = distribute(l->dim[0], dev);
+    int batch_size = distribute_len(l->dim[0], dev);
     int class_size = l->dim[1];
     int grid_size = (batch_size * class_size + block_size - 1) / block_size;
     chkCUDA(cudaSetDevice(dev));
@@ -1329,7 +1350,6 @@ int synch_comp()
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
   }
-  // MPI_Barrier();
 
   return 0;
 }
@@ -1340,7 +1360,6 @@ int synch_comm()
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
   }
-  // MPI_Barrier();
 
   return 0;
 }
@@ -1351,7 +1370,7 @@ int synch_device()
     chkCUDA(cudaSetDevice(dev));
     chkCUDA(cudaDeviceSynchronize());
   }
-  // MPI_Barrier();
+  chkMPI(MPI_Barrier(MPI_COMM_WORLD));
 
   return 0;
 }

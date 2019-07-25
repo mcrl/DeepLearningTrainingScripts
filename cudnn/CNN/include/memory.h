@@ -33,6 +33,7 @@ struct _gpu_memory_object {
   iterator_t iterator;
 
   void *dev_ptr[MAX_NDEV];
+  size_t offset_in_bytes[MAX_NDEV];
   size_t size_in_bytes[MAX_NDEV];
 
   int ndim;
@@ -76,7 +77,7 @@ typedef struct _gpu_memory_object *gpu_mem;
 
 size_t data_type_size(gpu_mem mem);
 
-size_t logical_buffer_size(gpu_mem mem);
+void logical_buffer_size(gpu_mem mem, size_t *local_size, size_t *global_size);
 
 ////////////////////////////////////////////////////////////
 // Memory Object Management API

@@ -5,12 +5,17 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <cudnn.h>
+#include <mpi.h>
 
 #include "layer.h"
 #include "params.h"
 #include "utils.h"
 #include "memory.h"
 #include "execute.h"
+
+// FIXME: remove dependencies
+extern int num_nodes;
+extern int node_id;
 
 void init_softmax_layer(
     softmax_layer *l, const char *name, int batch_size, int out)
@@ -92,18 +97,53 @@ void set_label(softmax_layer *l, int *label_in)
 
 float get_loss(softmax_layer *l, int *label_in)
 {
-  size_t size = logical_buffer_size(l->output);
-  float *result = (float *)malloc(size);
+  size_t local_size, global_size;
+  logical_buffer_size(l->output, &local_size, &global_size);
+
+  float *result = (float *)malloc(global_size);
   read_buffer(result, l->output, true);
+
+  // computation for gathering result buffer
+  int *recvcounts = (int *)malloc(num_nodes * sizeof(int));
+  int *displs = (int *)malloc(num_nodes * sizeof(int));
+
+  MPI_Gather(
+      &local_size, sizeof(int), MPI_BYTE, recvcounts,
+      sizeof(int), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+  displs[0] = 0;
+  for (int i = 1; i < num_nodes; ++i) {
+    displs[i] = displs[i - 1] + recvcounts[i - 1];
+  }
+
+  if (node_id == 0) {
+    MPI_Gatherv(
+        MPI_IN_PLACE, local_size, MPI_BYTE,
+        result, recvcounts, displs, MPI_BYTE, 0, MPI_COMM_WORLD);
+  }
+  else {
+    void *srcbuf = (void *)((char *)result + l->output->offset_in_bytes[0]);
+    MPI_Gatherv(
+        srcbuf, local_size, MPI_BYTE,
+        NULL, NULL, NULL, MPI_BYTE, 0, MPI_COMM_WORLD);
+  }
+  // FIXME: rearrange above statements to a subroutine
 
   float sum = 0;
   for (int i = 0; i < l->batch_size; i++) {
     float *cur = result + l->out * i;
     int ans = label_in[i];
     float loss = log(cur[ans]);
-    printf("%d, %f, %f\n", ans, cur[ans], loss);
     sum -= loss;
+
+    if (node_id == 0) {
+      printf("%d, %f, %f\n", ans, cur[ans], loss);
+    }
   }
+
+  free(recvcounts);
+  free(displs);
+  free(result);
 
   return sum / l->batch_size;
 }

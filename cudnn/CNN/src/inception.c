@@ -1375,6 +1375,8 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   INITIALIZE_RAND(param_in, sz/sizeof(float));
   inception_init_param(param_in);
 
+  alloc_buffer_by_type(WORK_SPACE);
+
   struct timespec st;
   struct timespec st_f;
   struct timespec ed;

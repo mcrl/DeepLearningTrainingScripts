@@ -60,6 +60,16 @@
     }\
   } while (0)
 
+#define chkMPI(exp) \
+  do {\
+    int status = (exp);\
+    if (status != MPI_SUCCESS) {\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d)\n",\
+          __FILE__, __LINE__, status);\
+      exit(EXIT_FAILURE);\
+    }\
+  } while (0)
+
 static inline int exists(const char *fname)
 {
   FILE *file;

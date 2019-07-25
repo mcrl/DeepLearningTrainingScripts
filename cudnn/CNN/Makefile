@@ -8,8 +8,8 @@ SRC_PATH := ./src
 OBJ_PATH := ./obj
 INCLUDE_PATH := ./include
 
-CC_INCLUDE := -I$(INCLUDE_PATH)
-CC_LIBRARY := -lm
+CC_INCLUDE := -I$(INCLUDE_PATH) -I/usr/include/openmpi-x86_64
+CC_LIBRARY := -lm -L/usr/lib64/openmpi/lib -lmpi
 
 CC_CUDA_INCLUDE := -I/usr/include -I/usr/local/cuda/include -I/usr/local/cuda/cudnn-7.4.2/include
 CC_CUDA_LIBRARY := -L/usr/lib/x86_64-linux-gnu/ -L/usr/lib64 -L/usr/local/cuda/lib64/ -L/usr/local/cuda/cudnn-7.4.2/lib64 -lcudnn -lcublas -lcudart -lnccl

@@ -891,6 +891,8 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   resnet_init(params.batch_size);
   resnet_connect();
 
+  alloc_buffer_by_type(WORK_SPACE);
+
   int num_batches = num_train_image / params.batch_size;
   fprintf(stderr, "total iteration : %d\n", num_batches);
 

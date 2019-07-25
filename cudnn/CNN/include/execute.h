@@ -151,7 +151,7 @@ int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw);
 int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y);
 
 /* Update Weight */
-int execute_apply_gradient(
+int execute_gradient_descent(
     const float learning_rate, gpu_mem dw, gpu_mem w);
 
 ////////////////////////////////////////////////////////////

@@ -124,8 +124,8 @@ void train_bwd_bn_layer(bn_layer *l)
   STOP_CNN_TIMER(bwd_t);
 
   START_CNN_TIMER(bwd_update_t);
-  execute_apply_gradient(params.learning_rate, l->d_scale, l->scale);
-  execute_apply_gradient(params.learning_rate, l->d_bias, l->bias);
+  execute_gradient_descent(params.learning_rate, l->d_scale, l->scale);
+  execute_gradient_descent(params.learning_rate, l->d_bias, l->bias);
   STOP_CNN_TIMER(bwd_update_t);
 }
 

@@ -9,6 +9,9 @@
 #include "utils.h"
 #include "execute.h"
 
+/* MPI */
+extern int node_id;
+
 typedef struct vgg_s {
   input_layer input;
 
@@ -205,51 +208,49 @@ void vgg_copy_input(float *data_in, int *label_in)
 
 void vgg_forward()
 {
-  LOG(_);
   for (int i = 0, j = 0; i < 13; i++) {
-    train_fwd_conv_layer(&net.conv[i]); LOG(_);
-    train_fwd_bias_layer(&net.bias[i]); LOG(_);
-    train_fwd_act_layer(&net.relu[i]); LOG(_);
+    train_fwd_conv_layer(&net.conv[i]);
+    train_fwd_bias_layer(&net.bias[i]);
+    train_fwd_act_layer(&net.relu[i]);
 
     if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      train_fwd_pool_layer(&net.pool[j]); LOG(_);
+      train_fwd_pool_layer(&net.pool[j]);
       j++;
     }
   }
 
   for (int i = 0; i < 2; i++) {
-    train_fwd_fc_layer(&net.fc[i]); LOG(_);
-    train_fwd_bias_layer(&net.fc_bias[i]); LOG(_);
-    train_fwd_act_layer(&net.fc_relu[i]); LOG(_);
+    train_fwd_fc_layer(&net.fc[i]);
+    train_fwd_bias_layer(&net.fc_bias[i]);
+    train_fwd_act_layer(&net.fc_relu[i]);
   }
 
-  train_fwd_fc_layer(&net.fc[2]); LOG(_);
-  train_fwd_bias_layer(&net.fc_bias[2]); LOG(_);
-  train_fwd_softmax_layer(&net.softmax); LOG(_);
+  train_fwd_fc_layer(&net.fc[2]);
+  train_fwd_bias_layer(&net.fc_bias[2]);
+  train_fwd_softmax_layer(&net.softmax);
 }
 
 void vgg_backward()
 {
-  LOG(_);
-  train_bwd_softmax_layer(&net.softmax); LOG(_);
-  train_bwd_bias_layer(&net.fc_bias[2]); LOG(_);
-  train_bwd_fc_layer(&net.fc[2]); LOG(_);
+  train_bwd_softmax_layer(&net.softmax);
+  train_bwd_bias_layer(&net.fc_bias[2]);
+  train_bwd_fc_layer(&net.fc[2]);
 
   for (int i = 1; i >= 0; i--) {
-    train_bwd_act_layer(&net.fc_relu[i]); LOG(_);
-    train_bwd_bias_layer(&net.fc_bias[i]); LOG(_);
-    train_bwd_fc_layer(&net.fc[i]); LOG(_);
+    train_bwd_act_layer(&net.fc_relu[i]);
+    train_bwd_bias_layer(&net.fc_bias[i]);
+    train_bwd_fc_layer(&net.fc[i]);
   }
 
   for (int i = 12, j = 4; i >= 0; i--) {
     if (i == 1 || i == 3 || i == 6 || i == 9 || i == 12) {
-      train_bwd_pool_layer(&net.pool[j]); LOG(_);
+      train_bwd_pool_layer(&net.pool[j]);
       j--;
     }
 
-    train_bwd_act_layer(&net.relu[i]); LOG(_);
-    train_bwd_bias_layer(&net.bias[i]); LOG(_);
-    train_bwd_conv_layer(&net.conv[i]); LOG(_);
+    train_bwd_act_layer(&net.relu[i]);
+    train_bwd_bias_layer(&net.bias[i]);
+    train_bwd_conv_layer(&net.conv[i]);
   }
 }
 
@@ -369,7 +370,10 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
 #ifdef PRINT_LOSS
       float l = get_loss(&net.softmax, label_in);
-      printf("loss for %d/%d : %f\n", b, num_batches, l);
+      /* MPI */
+      if (node_id == 0) {
+        printf("loss for %d/%d : %f\n", b, num_batches, l);
+      }
 #endif
 
       vgg_backward();
@@ -388,30 +392,39 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   synch_device();
   clock_gettime(CLOCK_MONOTONIC, &ed);
 
-  float training_time = diff_timespec_ms(st, ed);
-  float first_training_time = diff_timespec_ms(st_f, ed_f);
+  /* MPI */
+  if (node_id == 0) {
+    float training_time = diff_timespec_ms(st, ed);
+    float first_training_time = diff_timespec_ms(st_f, ed_f);
 
-  fprintf(stderr, "(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
-      training_time - first_training_time,
-      ((float)(params.batch_size * (params.num_batch_per_epoch * params.epochs - 1)) * 1000 / (training_time - first_training_time)));
-  fprintf(stderr, "(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
-      training_time, ((float)(params.batch_size * params.num_batch_per_epoch * params.epochs) * 1000 / (training_time)));
+    fprintf(stderr, "(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
+        training_time - first_training_time,
+        ((float)(params.batch_size * (params.num_batch_per_epoch * params.epochs - 1)) * 1000 / (training_time - first_training_time)));
+    fprintf(stderr, "(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
+        training_time, ((float)(params.batch_size * params.num_batch_per_epoch * params.epochs) * 1000 / (training_time)));
 
 #ifdef TIME_LAYER
-  vgg_print_time();
+    vgg_print_time();
 #endif
+  }
 
   vgg_get_param(param_out);
 
-  if (exists(params.result)) {
-    FILE *f = fopen(params.result, "rb");
-    assert(sz  == fread(param_result, 1, sz, f));
-    verify(param_out, param_result, sz / (sizeof(float)));
-    fclose(f);
+  /* MPI */
+  if (node_id == 0) {
+    if (exists(params.result)) {
+      FILE *f = fopen(params.result, "rb");
+      assert(sz  == fread(param_result, 1, sz, f));
+      verify(param_out, param_result, sz / (sizeof(float)));
+      fclose(f);
+    }
+    else {
+      FILE *f = fopen(params.result, "wb");
+      fwrite(param_out, 1, sz, f);
+      fclose(f);
+    }
   }
-  else {
-    FILE *f = fopen(params.result, "wb");
-    fwrite(param_out, 1, sz, f);
-    fclose(f);
-  }
+
+  __finalize_object_manager();
+  __finalize_stream_executer();
 }

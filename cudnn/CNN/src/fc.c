@@ -154,7 +154,7 @@ void train_bwd_fc_layer(fc_layer *l)
   STOP_CNN_TIMER(bwd_weight_t);
 
   START_CNN_TIMER(bwd_update_t);
-  execute_apply_gradient(params.learning_rate, l->d_weight, l->weight);
+  execute_gradient_descent(params.learning_rate, l->d_weight, l->weight);
   STOP_CNN_TIMER(bwd_update_t);
 }
 
