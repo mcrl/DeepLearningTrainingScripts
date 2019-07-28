@@ -41,9 +41,14 @@ void init_act_layer(
   ////////////////////////////////////////////////////////////////
   chkCUDNN(cudnnCreateActivationDescriptor(&l->act_desc));
 
-  // l->type == RELU_T
-  chkCUDNN(cudnnSetActivationDescriptor(
-        l->act_desc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 20.0));
+  if (l->type == RELU_T) {
+    chkCUDNN(cudnnSetActivationDescriptor(
+          l->act_desc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 20.0));
+  }
+  else if (l->type == SIGMOID_T) {
+    chkCUDNN(cudnnSetActivationDescriptor(
+          l->act_desc, CUDNN_ACTIVATION_SIGMOID, CUDNN_NOT_PROPAGATE_NAN, 0.0));
+  }
 
   ////////////////////////////////////////////////////////////////
   // 3. Create Tensors

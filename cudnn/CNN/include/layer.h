@@ -272,7 +272,7 @@ typedef struct bn_layer_s {
   float fwd_t, bwd_t, bwd_update_t;
 } bn_layer;
 
-typedef enum { RELU_T } act_type;
+typedef enum { RELU_T, SIGMOID_T } act_type;
 
 typedef struct act_layer_s {
   iterator_t iterator;
