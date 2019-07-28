@@ -452,7 +452,17 @@ int execute_get_conv_bwd_data_algo(
         algo));
 
   // FIXME: hard coded for a while
-  if ((int)(*algo) == 3) *((int *)algo) = 4;
+  if ((int)(*algo) == 3) {
+    int height = w->dim[2];
+    int width = w->dim[3];
+
+    if (height == 3 && width == 3) {
+      *((int *)algo) = 4;
+    }
+    else {
+      *((int *)algo) = 2;
+    }
+  }
 
   return 0;
 }
@@ -544,7 +554,17 @@ int execute_get_conv_fwd_algo(
         algo));
 
   // FIXME: hard coded for a while
-  if ((int)(*algo) == 5) *((int *)algo) = 6;
+  if ((int)(*algo) == 5) {
+    int height = w->dim[2];
+    int width = w->dim[3];
+
+    if (height == 3 && width == 3) {
+      *((int *)algo) = 6;
+    }
+    else {
+      *((int *)algo) = 4;
+    }
+  }
 
   return 0;
 }

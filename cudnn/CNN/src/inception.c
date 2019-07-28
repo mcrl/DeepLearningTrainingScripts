@@ -9,6 +9,9 @@
 #include "utils.h"
 #include "execute.h"
 
+/* MPI */
+extern int node_id;
+
 typedef struct inception_s {
   input_layer input;
   
@@ -1406,7 +1409,10 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
 #ifdef PRINT_LOSS
       float l = get_loss(&net.softmax, label_in);
-      printf("loss for %d/%d : %f\n", b, num_batches, l);
+      /* MPI */
+      if (node_id == 0) {
+        printf("loss for %d/%d : %f\n", b, num_batches, l);
+      }
 #endif
 
       inception_backward();
@@ -1425,30 +1431,39 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   synch_device();
   clock_gettime(CLOCK_MONOTONIC, &ed);          
 
-  float training_time = diff_timespec_ms(st, ed);
-  float first_training_time = diff_timespec_ms(st_f, ed_f);
+  /* MPI */
+  if (node_id == 0) {
+    float training_time = diff_timespec_ms(st, ed);
+    float first_training_time = diff_timespec_ms(st_f, ed_f);
 
-  fprintf(stderr, "(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
-      training_time - first_training_time,
-      ((float)(params.batch_size * (params.num_batch_per_epoch * params.epochs - 1)) * 1000 / (training_time - first_training_time)));
-  fprintf(stderr, "(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
-      training_time, ((float)(params.batch_size * params.num_batch_per_epoch * params.epochs) * 1000 / (training_time)));
+    fprintf(stderr, "(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
+        training_time - first_training_time,
+        ((float)(params.batch_size * (params.num_batch_per_epoch * params.epochs - 1)) * 1000 / (training_time - first_training_time)));
+    fprintf(stderr, "(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
+        training_time, ((float)(params.batch_size * params.num_batch_per_epoch * params.epochs) * 1000 / (training_time)));
 
 #ifdef TIME_LAYER
-  inception_print_time();
+    inception_print_time();
 #endif
+  }
 
   inception_get_param(param_out);
 
-  if (exists(params.result)) {
-    FILE *f = fopen(params.result, "rb");
-    assert(sz  == fread(param_result, 1, sz, f));
-    verify(param_out, param_result, sz / (sizeof(float))); 
-    fclose(f);
+  /* MPI */
+  if (node_id == 0) {
+    if (exists(params.result)) {
+      FILE *f = fopen(params.result, "rb");
+      assert(sz  == fread(param_result, 1, sz, f));
+      verify(param_out, param_result, sz / (sizeof(float))); 
+      fclose(f);
+    }
+    else {
+      FILE *f = fopen(params.result, "wb");
+      fwrite(param_out, 1, sz, f);
+      fclose(f);
+    }
   }
-  else {
-    FILE *f = fopen(params.result, "wb");
-    fwrite(param_out, 1, sz, f);
-    fclose(f);
-  }
+
+  __finalize_object_manager();
+  __finalize_stream_executer();
 }
