@@ -409,6 +409,25 @@ typedef struct softmax_layer_s {
   float fwd_t, bwd_t;
 } softmax_layer;
 
+typedef struct dropout_layer_s {
+  iterator_t iterator;
+  char name[LEN_NAME];
+
+  int batch_size;
+  int out;
+
+  float rate;
+  unsigned long long seed;
+
+  cudnnDropoutDescriptor_t dr_desc[MAX_NDEV];
+
+  gpu_mem input, d_input;
+  gpu_mem output, d_output;
+  gpu_mem rs, st;
+
+  float fwd_t, bwd_t;
+} dropout_layer;
+
 void init_input_layer(
     input_layer *l, const char *name,
     int batch_size, int channel, int height, int width);
@@ -455,6 +474,10 @@ void init_concat_layer(
     concat_layer *l, const char *name,
     int batch_size, int fan_in, int input_channel[], int height, int width);
 
+void init_dropout_layer(
+    dropout_layer *l, const char *name,
+    int batch_size, int out, float rate);
+
 void train_fwd_conv_layer(conv_layer *l);
 void train_fwd_fc_layer(fc_layer *l);
 void train_fwd_bn_layer(bn_layer *l);
@@ -465,6 +488,7 @@ void train_fwd_softmax_layer(softmax_layer *l);
 void train_fwd_branch_layer(branch_layer *l);
 void train_fwd_bias_layer(bias_layer *l);
 void train_fwd_concat_layer(concat_layer *l);
+void train_fwd_dropout_layer(dropout_layer *l);
 
 void train_bwd_conv_layer(conv_layer *l);
 void train_bwd_fc_layer(fc_layer *l);
@@ -477,6 +501,7 @@ void train_bwd_softmax_layer(softmax_layer *l);
 void train_bwd_branch_layer(branch_layer *l);
 void train_bwd_bias_layer(bias_layer *l);
 void train_bwd_concat_layer(concat_layer *l);
+void train_bwd_dropout_layer(dropout_layer *l);
 
 void set_input(input_layer *l, float *data_in);
 void set_label(softmax_layer *l, int *label_in);
@@ -491,6 +516,7 @@ void print_time_softmax_layer(softmax_layer *l);
 void print_time_branch_layer(branch_layer *l);
 void print_time_bias_layer(bias_layer *l);
 void print_time_concat_layer(concat_layer *l);
+void print_time_dropout_layer(dropout_layer *l);
 
 void clear_time_conv_layer(conv_layer *l);
 void clear_time_fc_layer(fc_layer *l);
@@ -502,6 +528,7 @@ void clear_time_softmax_layer(softmax_layer *l);
 void clear_time_branch_layer(branch_layer *l);
 void clear_time_bias_layer(bias_layer *l);
 void clear_time_concat_layer(concat_layer *l);
+void clear_time_dropout_layer(dropout_layer *l);
 
 size_t param_size_conv(conv_layer *l);
 size_t param_size_fc(fc_layer *l);

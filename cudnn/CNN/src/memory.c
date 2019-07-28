@@ -461,6 +461,8 @@ error:
   return -1;
 }
 
+static int create_group(gpu_mem mem);
+
 static int alloc_buffer_internal(gpu_mem mem);
 
 int create_4d_weight(
@@ -493,7 +495,7 @@ int create_4d_weight(
   }
   mem->allocated = false;
 
-  // FIXME: add to mem_list
+  create_group(mem);
   check(alloc_buffer_internal(mem) == 0);
 
   return 0;
@@ -501,8 +503,6 @@ int create_4d_weight(
 error:
   return -1;
 }
-
-static int create_group(gpu_mem mem);
 
 int create_rawspace(gpu_mem mem, size_t size_in_bytes)
 {
@@ -525,14 +525,21 @@ int create_rawspace(gpu_mem mem, size_t size_in_bytes)
     create_group(mem);
     is_first = false;
   }
-  else {
-    list_t *l = &mem_group_list[mem->obj_type];
+  else if (is_work_space(mem)) {
+    list_t *l = &mem_group_list[WORK_SPACE];
 
     gpu_mem_group group =
       list_first(l, struct _gpu_memory_object_group, iterator);
 
     mem->parent = &group->mem_list;
     list_push_back(mem->parent, &mem->iterator);
+  }
+  else if (is_reserve_space(mem)) {
+    create_group(mem);
+    check(alloc_buffer_internal(mem) == 0);
+  }
+  else {
+    check(false);
   }
 
   return 0;

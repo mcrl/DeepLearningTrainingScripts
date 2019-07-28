@@ -114,6 +114,24 @@ int execute_get_conv_fwd_ws_size(
     gpu_mem x, gpu_mem w, gpu_mem y,
     size_t *ws_size);
 
+/* Dropout */
+int execute_dropout_bwd(
+    cudnnDropoutDescriptor_t drDesc[],
+    gpu_mem dy, gpu_mem dx, gpu_mem reserveSpace);
+
+int execute_dropout_fwd(
+    cudnnDropoutDescriptor_t drDesc[],
+    gpu_mem x, gpu_mem y, gpu_mem reserveSpace);
+
+int execute_set_dropout(
+    cudnnDropoutDescriptor_t drDesc[],
+    float rate, unsigned long long seed,
+    gpu_mem states);
+
+int execute_get_dropout_st_size(size_t *st_size);
+
+int execute_get_dropout_rs_size(gpu_mem x, size_t *rs_size);
+
 /* Element-wise Operation */
 int execute_elt(
     cudnnOpTensorDescriptor_t opDesc,

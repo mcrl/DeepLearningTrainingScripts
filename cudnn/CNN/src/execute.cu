@@ -594,6 +594,113 @@ int execute_get_conv_fwd_ws_size(
   return 0;
 }
 
+/* Dropout */
+int execute_dropout_bwd(
+    cudnnDropoutDescriptor_t drDesc[],
+    gpu_mem dy, gpu_mem dx, gpu_mem reserveSpace)
+{
+  test_input(is_data_grad, dy);
+  test_output(is_data_grad, dx);
+  test_input(is_reserve_space, reserveSpace);
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    chkCUDNN(cudnnDropoutBackward(
+          cudnn_handle[dev],
+          drDesc[dev],
+          dy->tensor_desc[dev],
+          dy->dev_ptr[dev],
+          dx->tensor_desc[dev],
+          dx->dev_ptr[dev],
+          reserveSpace->dev_ptr[dev],
+          reserveSpace->size_in_bytes[dev]));
+  }
+
+  return 0;
+}
+
+int execute_dropout_fwd(
+    cudnnDropoutDescriptor_t drDesc[],
+    gpu_mem x, gpu_mem y, gpu_mem reserveSpace)
+{
+  test_input(is_data_grad, x);
+  test_output(is_data_grad, y);
+  test_input(is_reserve_space, reserveSpace);
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    chkCUDNN(cudnnDropoutForward(
+          cudnn_handle[dev],
+          drDesc[dev],
+          x->tensor_desc[dev],
+          x->dev_ptr[dev],
+          y->tensor_desc[dev],
+          y->dev_ptr[dev],
+          reserveSpace->dev_ptr[dev],
+          reserveSpace->size_in_bytes[dev]));
+  }
+
+  return 0;
+}
+
+int execute_set_dropout(
+    cudnnDropoutDescriptor_t drDesc[],
+    float rate, unsigned long long seed,
+    gpu_mem states)
+{
+  test_output(is_reserve_space, states);
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    chkCUDNN(cudnnSetDropoutDescriptor(
+          drDesc[dev],
+          cudnn_handle[dev],
+          rate,
+          states->dev_ptr[dev],
+          states->size_in_bytes[dev],
+          seed));
+  }
+
+  return 0;
+}
+
+int execute_get_dropout_st_size(size_t *st_size)
+{
+  *st_size = 0;
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    size_t size_in_bytes;
+    chkCUDNN(cudnnDropoutGetStatesSize(
+          cudnn_handle[dev], &size_in_bytes));
+
+    *st_size = MAX(*st_size, size_in_bytes);
+  }
+
+  return 0;
+}
+
+int execute_get_dropout_rs_size(gpu_mem x, size_t *rs_size)
+{
+  *rs_size = 0;
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDA(cudaSetDevice(dev));
+
+    size_t size_in_bytes;
+    chkCUDNN(cudnnDropoutGetReserveSpaceSize(
+          x->tensor_desc[dev], &size_in_bytes));
+
+    *rs_size = MAX(*rs_size, size_in_bytes);
+  }
+
+  return 0;
+}
+
 /* Element-wise Operation */
 int execute_elt(
     cudnnOpTensorDescriptor_t opDesc,
@@ -738,12 +845,27 @@ int execute_softmax_fwd(
 // cuBLAS based API
 ////////////////////////////////////////////////////////////
 
+static void enable_tensor_core()
+{
+  static bool initialized = false;
+
+  if (!initialized) {
+    for (int dev = 0; dev < num_devices; dev++) {
+      chkCUDA(cudaSetDevice(dev));
+      cublasSetMathMode(cublas_handle[dev], CUBLAS_TENSOR_OP_MATH);
+    }
+    initialized = true;
+  }
+}
+
 /* Linear */
 int execute_linear_bwd_data(gpu_mem w, gpu_mem dy, gpu_mem dx)
 {
   test_input(is_weight, w);
   test_input(is_data_grad, dy);
   test_output(is_data_grad, dx);
+
+  enable_tensor_core();
 
   int m = dx->dim[1];
   int n = dx->dim[0];
@@ -771,6 +893,8 @@ int execute_linear_bwd_weight(gpu_mem x, gpu_mem dy, gpu_mem dw)
   test_input(is_data, x);
   test_input(is_data_grad, dy);
   test_output(is_weight_grad, dw);
+
+  enable_tensor_core();
 
   int m = x->dim[1];
   int n = dy->dim[1];
@@ -803,6 +927,8 @@ int execute_linear_fwd(gpu_mem x, gpu_mem w, gpu_mem y)
   test_input(is_weight, w);
   test_output(is_data, y);
 
+  enable_tensor_core();
+
   int m = y->dim[1];
   int n = x->dim[0];
   int k = x->dim[1];
@@ -830,6 +956,8 @@ int execute_gradient_descent(
 {
   test_input(is_weight_grad_or_param_grad, dw);
   test_output(is_weight_or_param, w);
+
+  enable_tensor_core();
 
   float alpha = -learning_rate;
 
