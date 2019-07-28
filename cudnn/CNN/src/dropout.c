@@ -51,13 +51,13 @@ void init_dropout_layer(
   ////////////////////////////////////////////////////////////////
   // 2. Set Dropout Descriptor
   ////////////////////////////////////////////////////////////////
-  for (dev = 0; dev < num_devices; dev++) {
+  for (int dev = 0; dev < num_devices; dev++) {
     chkCUDNN(cudnnCreateDropoutDescriptor(&l->dr_desc[dev]));
   }
 
   execute_get_dropout_st_size(&st_size);
 
-  create_buffer_reserve_space(&l->states, st_size);
+  create_buffer_reserve_space(&l->st, st_size);
 
   execute_set_dropout(l->dr_desc, l->rate, l->seed, l->st);
 
