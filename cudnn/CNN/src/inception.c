@@ -1367,6 +1367,8 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   inception_init(params.batch_size);
   inception_connect();
 
+  alloc_buffer_by_type(WORK_SPACE);
+
   int num_batches = num_train_image / params.batch_size;
   fprintf(stderr, "total iteration : %d\n", num_batches);
 
@@ -1378,16 +1380,15 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   INITIALIZE_RAND(param_in, sz/sizeof(float));
   inception_init_param(param_in);
 
-  alloc_buffer_by_type(WORK_SPACE);
+  bool is_first = true;
+  bool synch_iteration = true;
 
-  struct timespec st;
-  struct timespec st_f;
-  struct timespec ed;
-  struct timespec ed_f;
+  enum { FULL_ITERATION, HEAD_ITERATION, COPY_INPUT, NUM_TIMERS };
+  struct timespec t_begin[NUM_TIMERS];
+  struct timespec t_end[NUM_TIMERS];
+  float elapsed_time[NUM_TIMERS] = { 0.0 };
 
-  int first = 1;
-
-  clock_gettime(CLOCK_MONOTONIC, &st);
+  clock_gettime(CLOCK_MONOTONIC, &t_begin[FULL_ITERATION]);
 
   for (int e = 0; e < params.epochs; e++) {
     fprintf(stderr, "epoch %d/%d start\n", e+1, params.epochs);
@@ -1396,14 +1397,23 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     int *label_in = NULL;
 
     for (int b = 0; b < num_batches; b++) {
-      if (first) {
-        clock_gettime(CLOCK_MONOTONIC, &st_f);
+      if (synch_iteration) {
+        clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
       }
-
+ 
       data_in = train_data + b * params.batch_size * params.width * params.height * params.channel;
       label_in = train_label + b * params.batch_size;
 
       inception_copy_input(data_in, label_in);
+
+      if (synch_iteration) {
+        clock_gettime(CLOCK_MONOTONIC, &t_end[COPY_INPUT]);
+        elapsed_time[COPY_INPUT] += diff_timespec_ms(t_begin[COPY_INPUT], t_end[COPY_INPUT]);
+      }
+
+      if (is_first) {
+        clock_gettime(CLOCK_MONOTONIC, &t_begin[HEAD_ITERATION]);
+      }
 
       inception_forward();
 
@@ -1417,24 +1427,29 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
       inception_backward();
 
-      if (first) {
+      if (is_first) {
         synch_device();
-        clock_gettime(CLOCK_MONOTONIC, &ed_f);
+        clock_gettime(CLOCK_MONOTONIC, &t_end[HEAD_ITERATION]);
+        elapsed_time[HEAD_ITERATION] = diff_timespec_ms(t_begin[HEAD_ITERATION], t_end[HEAD_ITERATION]);
 #ifdef TIME_LAYER
         inception_clear_time();
 #endif
-        first = 0;
+        is_first = false;
+      }
+      else if (synch_iteration) {
+        synch_device();
       }
     }
   }
 
   synch_device();
-  clock_gettime(CLOCK_MONOTONIC, &ed);          
+  clock_gettime(CLOCK_MONOTONIC, &t_end[FULL_ITERATION]);
+  elapsed_time[FULL_ITERATION] = diff_timespec_ms(t_begin[FULL_ITERATION], t_end[FULL_ITERATION]);
 
   /* MPI */
   if (node_id == 0) {
-    float training_time = diff_timespec_ms(st, ed);
-    float first_training_time = diff_timespec_ms(st_f, ed_f);
+    float training_time = elapsed_time[FULL_ITERATION] - elapsed_time[COPY_INPUT];
+    float first_training_time = elapsed_time[HEAD_ITERATION];
 
     fprintf(stderr, "(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
         training_time - first_training_time,
