@@ -847,6 +847,7 @@ int execute_softmax_fwd(
 
 static void enable_tensor_core()
 {
+#ifdef USE_TENSOR_CORE
   static bool initialized = false;
 
   if (!initialized) {
@@ -856,6 +857,7 @@ static void enable_tensor_core()
     }
     initialized = true;
   }
+#endif
 }
 
 /* Linear */
@@ -1506,7 +1508,7 @@ int synch_comm()
 {
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDA(cudaSetDevice(dev));
-    chkCUDA(cudaStreamSynchronize(kernel_stream[dev]));
+    chkCUDA(cudaStreamSynchronize(memory_stream[dev]));
   }
 
   return 0;

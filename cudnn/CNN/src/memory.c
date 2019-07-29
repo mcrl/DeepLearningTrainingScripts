@@ -466,6 +466,8 @@ int create_2d_tensor(
     int ofs = distribute_ofs(n, dev);
     int len = distribute_len(n, dev);
 
+    mem->dim[0] = len;
+
     chkCUDNN(cudnnSetTensorNdDescriptor(
           mem->tensor_desc[dev], data_type,
           mem->ndim, mem->dim, mem->stride));
@@ -475,6 +477,8 @@ int create_2d_tensor(
     mem->size_in_bytes[dev] = type_size * len * h;
     mem->dev_ptr[dev] = NULL;
   }
+
+  mem->dim[0] = n;
   mem->allocated = false;
 
   return 0;
@@ -502,6 +506,8 @@ int create_3d_tensor(
     int ofs = distribute_ofs(n, dev);
     int len = distribute_len(n, dev);
 
+    mem->dim[0] = len;
+
     chkCUDNN(cudnnSetTensorNdDescriptor(
           mem->tensor_desc[dev], data_type,
           mem->ndim, mem->dim, mem->stride));
@@ -511,6 +517,8 @@ int create_3d_tensor(
     mem->size_in_bytes[dev] = type_size * len * s * h;
     mem->dev_ptr[dev] = NULL;
   }
+
+  mem->dim[0] = n;
   mem->allocated = false;
 
   return 0;
@@ -540,15 +548,24 @@ int create_4d_tensor(
     int ofs = distribute_ofs(n, dev);
     int len = distribute_len(n, dev);
 
+    mem->dim[0] = len;
+
     chkCUDNN(cudnnSetTensorNdDescriptor(
           mem->tensor_desc[dev], data_type,
           mem->ndim, mem->dim, mem->stride));
+    /*
+    chkCUDNN(cudnnSetTensor4dDescriptor(
+          mem->tensor_desc[dev], CUDNN_TENSOR_NCHW,
+          data_type, len, c, h, w));
+    */
 
     size_t type_size = size_of_cudnn_data_type[data_type];
     mem->offset_in_bytes[dev] = type_size * ofs * c * h * w;
     mem->size_in_bytes[dev] = type_size * len * c * h * w;
     mem->dev_ptr[dev] = NULL;
   }
+
+  mem->dim[0] = n;
   mem->allocated = false;
 
   return 0;
@@ -608,6 +625,7 @@ int create_rawspace(gpu_mem mem, size_t size_in_bytes)
 {
   mem->ndim = 1;
   mem->dim[0] = size_in_bytes;
+  mem->stride[0] = 1;
 
   mem->filter_desc = NULL;
 
@@ -864,14 +882,6 @@ int alloc_buffer_internal(gpu_mem mem)
     device_memory_usage[dev] += mem->size_in_bytes[dev];
   }
   mem->allocated = true;
-
-#if defined(USE_LOG)
-  // FIXME: remove this statement before commit to remote repo
-  fprintf(stderr, "%s: total %d KB (%d MB)\n",
-      __func__,
-      (int)(device_memory_usage[0] / 1024),
-      (int)(device_memory_usage[0] / 1024 / 1024));
-#endif
 
   return 0;
 
