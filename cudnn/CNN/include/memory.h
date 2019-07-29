@@ -37,7 +37,8 @@ struct _gpu_memory_object {
   size_t size_in_bytes[MAX_NDEV];
 
   int ndim;
-  size_t dim[CUDNN_DIM_MAX];
+  int dim[CUDNN_DIM_MAX];
+  int stride[CUDNN_DIM_MAX];
 
   cudnnDataType_t data_type;
   cudnnTensorDescriptor_t tensor_desc[MAX_NDEV];

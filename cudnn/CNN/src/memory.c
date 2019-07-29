@@ -138,6 +138,12 @@ int __finalize_object_manager()
 
 static void assign_flags_from_object_type(gpu_mem mem);
 
+static int create_2d_tensor(
+    gpu_mem mem, cudnnDataType_t data_type, int n, int h);
+
+static int create_3d_tensor(
+    gpu_mem mem, cudnnDataType_t data_type, int n, int s, int h);
+
 static int create_4d_tensor(
     gpu_mem mem, cudnnDataType_t data_type, int n, int c, int h, int w);
 
@@ -160,6 +166,14 @@ int create_buffer_data(
   assign_flags_from_object_type(*mem);
 
   switch (ndim) {
+    case 2:
+      check(create_2d_tensor(*mem, data_type, args[0], args[1]) == 0);
+      return 0;
+
+    case 3:
+      check(create_3d_tensor(*mem, data_type, args[0], args[1], args[2]) == 0);
+      return 0;
+
     case 4:
       check(create_4d_tensor(*mem, data_type, args[0], args[1], args[2], args[3]) == 0);
       return 0;
@@ -193,6 +207,14 @@ int create_buffer_data_gradient(
   assign_flags_from_object_type(*mem);
 
   switch (ndim) {
+    case 2:
+      check(create_2d_tensor(*mem, data_type, args[0], args[1]) == 0);
+      return 0;
+
+    case 3:
+      check(create_3d_tensor(*mem, data_type, args[0], args[1], args[2]) == 0);
+      return 0;
+
     case 4:
       check(create_4d_tensor(*mem, data_type, args[0], args[1], args[2], args[3]) == 0);
       return 0;
@@ -427,14 +449,14 @@ error:
   return -1;
 }
 
-int create_4d_tensor(
-    gpu_mem mem, cudnnDataType_t data_type, int n, int c, int h, int w)
+int create_2d_tensor(
+    gpu_mem mem, cudnnDataType_t data_type, int n, int h)
 {
-  mem->ndim = 4;
+  mem->ndim = 2;
   mem->dim[0] = n;
-  mem->dim[1] = c;
   mem->dim[2] = h;
-  mem->dim[3] = w;
+  mem->stride[0] = mem->dim[1];
+  mem->stride[1] = 1;
 
   mem->filter_desc = NULL;
 
@@ -444,9 +466,83 @@ int create_4d_tensor(
     int ofs = distribute_ofs(n, dev);
     int len = distribute_len(n, dev);
 
-    chkCUDNN(cudnnSetTensor4dDescriptor(
-          mem->tensor_desc[dev], CUDNN_TENSOR_NCHW,
-          data_type, len, c, h, w));
+    chkCUDNN(cudnnSetTensorNdDescriptor(
+          mem->tensor_desc[dev], data_type,
+          mem->ndim, mem->dim, mem->stride));
+
+    size_t type_size = size_of_cudnn_data_type[data_type];
+    mem->offset_in_bytes[dev] = type_size * ofs * h;
+    mem->size_in_bytes[dev] = type_size * len * h;
+    mem->dev_ptr[dev] = NULL;
+  }
+  mem->allocated = false;
+
+  return 0;
+
+error:
+  return -1;
+}
+
+int create_3d_tensor(
+    gpu_mem mem, cudnnDataType_t data_type, int n, int s, int h)
+{
+  mem->ndim = 3;
+  mem->dim[0] = n;
+  mem->dim[1] = s;
+  mem->dim[2] = h;
+  mem->stride[0] = mem->dim[1] * mem->dim[2];
+  mem->stride[1] = mem->dim[2];
+  mem->stride[2] = 1;
+
+  mem->filter_desc = NULL;
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDNN(cudnnCreateTensorDescriptor(&mem->tensor_desc[dev]));
+
+    int ofs = distribute_ofs(n, dev);
+    int len = distribute_len(n, dev);
+
+    chkCUDNN(cudnnSetTensorNdDescriptor(
+          mem->tensor_desc[dev], data_type,
+          mem->ndim, mem->dim, mem->stride));
+
+    size_t type_size = size_of_cudnn_data_type[data_type];
+    mem->offset_in_bytes[dev] = type_size * ofs * s * h;
+    mem->size_in_bytes[dev] = type_size * len * s * h;
+    mem->dev_ptr[dev] = NULL;
+  }
+  mem->allocated = false;
+
+  return 0;
+
+error:
+  return -1;
+}
+
+int create_4d_tensor(
+    gpu_mem mem, cudnnDataType_t data_type, int n, int c, int h, int w)
+{
+  mem->ndim = 4;
+  mem->dim[0] = n;
+  mem->dim[1] = c;
+  mem->dim[2] = h;
+  mem->dim[3] = w;
+  mem->stride[0] = mem->dim[1] * mem->dim[2] * mem->dim[3];
+  mem->stride[1] = mem->dim[2] * mem->dim[3];
+  mem->stride[2] = mem->dim[3];
+  mem->stride[3] = 1;
+
+  mem->filter_desc = NULL;
+
+  for (int dev = 0; dev < num_devices; dev++) {
+    chkCUDNN(cudnnCreateTensorDescriptor(&mem->tensor_desc[dev]));
+
+    int ofs = distribute_ofs(n, dev);
+    int len = distribute_len(n, dev);
+
+    chkCUDNN(cudnnSetTensorNdDescriptor(
+          mem->tensor_desc[dev], data_type,
+          mem->ndim, mem->dim, mem->stride));
 
     size_t type_size = size_of_cudnn_data_type[data_type];
     mem->offset_in_bytes[dev] = type_size * ofs * c * h * w;
@@ -473,6 +569,10 @@ int create_4d_weight(
   mem->dim[1] = c;
   mem->dim[2] = h;
   mem->dim[3] = w;
+  mem->stride[0] = mem->dim[1] * mem->dim[2] * mem->dim[3];
+  mem->stride[1] = mem->dim[2] * mem->dim[3];
+  mem->stride[2] = mem->dim[3];
+  mem->stride[3] = 1;
 
   chkCUDNN(cudnnCreateFilterDescriptor(&mem->filter_desc));
 
@@ -485,9 +585,9 @@ int create_4d_weight(
   for (int dev = 0; dev < num_devices; dev++) {
     chkCUDNN(cudnnCreateTensorDescriptor(&mem->tensor_desc[dev]));
 
-    chkCUDNN(cudnnSetTensor4dDescriptor(
-          mem->tensor_desc[dev], CUDNN_TENSOR_NCHW,
-          data_type, k, c, h, w));
+    chkCUDNN(cudnnSetTensorNdDescriptor(
+          mem->tensor_desc[dev], data_type,
+          mem->ndim, mem->dim, mem->stride));
 
     mem->offset_in_bytes[dev] = 0;
     mem->size_in_bytes[dev] = size_in_bytes;
