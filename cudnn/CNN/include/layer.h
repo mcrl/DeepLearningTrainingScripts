@@ -393,12 +393,18 @@ typedef struct input_layer_s {
   gpu_mem output, d_output;
 } input_layer;
 
+typedef enum {
+  LOG_T, ACCURATE_T
+} softmax_type;
+
 typedef struct softmax_layer_s {
   iterator_t iterator;
   char name[LEN_NAME];
 
   int batch_size;
   int out;
+
+  softmax_type type;
 
   cudnnOpTensorDescriptor_t op_desc;
 
@@ -464,7 +470,8 @@ void init_pool_layer(
     int channel, int input_height, int input_width, pool_type type);
 
 void init_softmax_layer(
-    softmax_layer *l, const char *name, int batch_size, int out);
+    softmax_layer *l, const char *name,
+    int batch_size, int out, softmax_type type);
 
 void init_branch_layer(
     branch_layer *l, const char *name,

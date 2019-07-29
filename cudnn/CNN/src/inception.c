@@ -611,7 +611,7 @@ void inception_init(int batch_size)
   init_bias_layer(&net.fc_bias, name, batch_size, 1000, 1, 1);
 
   sprintf(name, "softmax");
-  init_softmax_layer(&net.softmax, name, batch_size, 1000);
+  init_softmax_layer(&net.softmax, name, batch_size, 1000, ACCURATE_T);
 
   net.is_initiated = true;
 }
@@ -1370,7 +1370,9 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   alloc_buffer_by_type(WORK_SPACE);
 
   int num_batches = num_train_image / params.batch_size;
-  fprintf(stderr, "total iteration : %d\n", num_batches);
+  if (node_id == 0) {
+    printf("total iteration : %d\n", num_batches);
+  }
 
   size_t sz = inception_get_param_size();
   float *param_in = (float *)malloc(sz);
@@ -1391,7 +1393,9 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   clock_gettime(CLOCK_MONOTONIC, &t_begin[FULL_ITERATION]);
 
   for (int e = 0; e < params.epochs; e++) {
-    fprintf(stderr, "epoch %d/%d start\n", e+1, params.epochs);
+    if (node_id == 0) {
+      printf("epoch %d/%d start\n", e+1, params.epochs);
+    }
 
     float *data_in = NULL;
     int *label_in = NULL;
@@ -1451,10 +1455,10 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     float training_time = elapsed_time[FULL_ITERATION] - elapsed_time[COPY_INPUT];
     float first_training_time = elapsed_time[HEAD_ITERATION];
 
-    fprintf(stderr, "(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
+    printf("(Excl. 1st iter) %.3f ms, %.3f image / sec\n",
         training_time - first_training_time,
         ((float)(params.batch_size * (params.num_batch_per_epoch * params.epochs - 1)) * 1000 / (training_time - first_training_time)));
-    fprintf(stderr, "(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
+    printf("(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
         training_time, ((float)(params.batch_size * params.num_batch_per_epoch * params.epochs) * 1000 / (training_time)));
 
 #ifdef TIME_LAYER

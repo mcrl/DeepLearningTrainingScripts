@@ -18,7 +18,8 @@ extern int num_nodes;
 extern int node_id;
 
 void init_softmax_layer(
-    softmax_layer *l, const char *name, int batch_size, int out)
+    softmax_layer *l, const char *name,
+    int batch_size, int out, softmax_type type)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
@@ -27,6 +28,8 @@ void init_softmax_layer(
 
   l->batch_size = batch_size;
   l->out = out;
+
+  l->type = type;
 
   l->label = NULL;
 
@@ -69,7 +72,8 @@ void train_fwd_softmax_layer(softmax_layer *l)
 {
   START_CNN_TIMER(fwd_t);
   execute_softmax_fwd(
-      CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL, l->input, l->output);
+      (l->type == LOG_T) ? CUDNN_SOFTMAX_LOG : CUDNN_SOFTMAX_ACCURATE,
+      CUDNN_SOFTMAX_MODE_CHANNEL, l->input, l->output);
   STOP_CNN_TIMER(fwd_t);
 }
 

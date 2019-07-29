@@ -158,7 +158,7 @@ void vgg_init(int batch_size)
   init_bias_layer(&net.fc_bias[2], name, batch_size, 1000, 1, 1);
 
   sprintf(name, "softmax");
-  init_softmax_layer(&net.softmax, name, batch_size, 1000);
+  init_softmax_layer(&net.softmax, name, batch_size, 1000, ACCURATE_T);
 
   net.is_initiated = true;
 }
