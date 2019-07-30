@@ -452,11 +452,13 @@ error:
 int create_2d_tensor(
     gpu_mem mem, cudnnDataType_t data_type, int n, int h)
 {
-  mem->ndim = 2;
+  mem->ndim = 3;
   mem->dim[0] = n;
-  mem->dim[2] = h;
+  mem->dim[1] = h;
+  mem->dim[2] = 1;
   mem->stride[0] = mem->dim[1];
   mem->stride[1] = 1;
+  mem->stride[2] = 1;
 
   mem->filter_desc = NULL;
 
@@ -553,11 +555,6 @@ int create_4d_tensor(
     chkCUDNN(cudnnSetTensorNdDescriptor(
           mem->tensor_desc[dev], data_type,
           mem->ndim, mem->dim, mem->stride));
-    /*
-    chkCUDNN(cudnnSetTensor4dDescriptor(
-          mem->tensor_desc[dev], CUDNN_TENSOR_NCHW,
-          data_type, len, c, h, w));
-    */
 
     size_t type_size = size_of_cudnn_data_type[data_type];
     mem->offset_in_bytes[dev] = type_size * ofs * c * h * w;
