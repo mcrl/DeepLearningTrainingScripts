@@ -1362,8 +1362,8 @@ int execute_concat_bwd(int fan_in, gpu_mem dy, gpu_mem dx[])
 
     if (fan_in == 2) {
       cuda_split2<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
-          batch_size, dx[0]->dim[1], dx[1]->dim[1],
-          dy->dim[2], dy->dim[3],
+          batch_size, dy->dim[2], dy->dim[3],
+          dx[0]->dim[1], dx[1]->dim[1],
           (float *)dy->dev_ptr[dev],
           (float *)dx[0]->dev_ptr[dev],
           (float *)dx[1]->dev_ptr[dev]);
@@ -1481,6 +1481,7 @@ int execute_set_label(gpu_mem l, gpu_mem dy)
     int batch_size = distribute_len(l->dim[0], dev);
     int class_size = l->dim[1];
     int grid_size = (batch_size * class_size + block_size - 1) / block_size;
+
     chkCUDA(cudaSetDevice(dev));
 
     cuda_set_label<<<grid_size, block_size, 0, kernel_stream[dev]>>>(
