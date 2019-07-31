@@ -963,6 +963,8 @@ int execute_gradient_descent(
 
   float alpha = -learning_rate;
 
+  synch_comm();
+
   for (int dev = 0; dev < num_devices; dev++) {
     int num_elements = w->size_in_bytes[dev] / data_type_size(w);
     chkCUDA(cudaSetDevice(dev));
