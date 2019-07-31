@@ -1,8 +1,6 @@
 #!/bin/bash
 
 ####################################################
-#networks=vgg resnet densenet inception
-networks=vgg resnet densenet
 
 batch_size=32
 iteration=10
@@ -10,8 +8,7 @@ iteration=10
 data_path=/home/data/imagenet_10240.data
 label_path=/home/data/imagenet_10240.label
 
-#host_list=("c0" "c1" "c2" "c3" "c4" "c5" "c6" "c8")
-host_list=("c0" "c2" "c4" "c5" "c6" "c8")
+host_list=("c0" "c1" "c2" "c3" "c4" "c5" "c6" "c8")
 dev_list=("0" "1" "2" "3")
 
 ####################################################
@@ -55,14 +52,15 @@ run_test() {
 ####################################################
 
 mkdir -p model
+mkdir -p obj
 mkdir -p log
 
-for net in ${networks} ; do
+for net in vgg resnet densenet ; do
 make ${net}
 run_test 1 1 ${net}
 run_test 1 2 ${net}
 run_test 1 4 ${net}
 run_test 2 4 ${net}
 run_test 4 4 ${net}
-#run_test 8 4 ${net}
+run_test 8 4 ${net}
 done

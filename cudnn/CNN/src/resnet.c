@@ -910,7 +910,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   resnet_init_param(param_in);
 
   bool is_first = true;
-  bool synch_iteration = true;
 
   enum { FULL_ITERATION, HEAD_ITERATION, COPY_INPUT, NUM_TIMERS };
   struct timespec t_begin[NUM_TIMERS];
@@ -928,19 +927,19 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     int *label_in = NULL;
 
     for (int b = 0; b < num_batches; b++) {
-      if (synch_iteration) {
-        clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
-      }
+#ifdef USE_LOCK_STEP
+      clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
+#endif
 
       data_in = train_data + b * params.batch_size * params.width * params.height * params.channel;
       label_in = train_label + b * params.batch_size;
 
       resnet_copy_input(data_in, label_in);
 
-      if (synch_iteration) {
-        clock_gettime(CLOCK_MONOTONIC, &t_end[COPY_INPUT]);
-        elapsed_time[COPY_INPUT] += diff_timespec_ms(t_begin[COPY_INPUT], t_end[COPY_INPUT]);
-      }
+#ifdef USE_LOCK_STEP
+      clock_gettime(CLOCK_MONOTONIC, &t_end[COPY_INPUT]);
+      elapsed_time[COPY_INPUT] += diff_timespec_ms(t_begin[COPY_INPUT], t_end[COPY_INPUT]);
+#endif
 
       if (is_first) {
         clock_gettime(CLOCK_MONOTONIC, &t_begin[HEAD_ITERATION]);
@@ -962,14 +961,14 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
         synch_device();
         clock_gettime(CLOCK_MONOTONIC, &t_end[HEAD_ITERATION]);
         elapsed_time[HEAD_ITERATION] = diff_timespec_ms(t_begin[HEAD_ITERATION], t_end[HEAD_ITERATION]);
-#ifdef TIME_LAYER
+#ifdef USE_TIMER
         resnet_clear_time();
 #endif
         is_first = false;
       }
-      else if (synch_iteration) {
-        synch_device();
-      }
+#ifdef USE_LOCK_STEP
+      synch_device();
+#endif
     }
   }
 
@@ -988,7 +987,7 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     printf("(Incl. 1st iter) %.3f ms, %.3f image / sec\n",
         training_time, ((float)(params.batch_size * params.num_batch_per_epoch * params.epochs) * 1000 / (training_time)));
 
-#ifdef TIME_LAYER
+#ifdef USE_TIMER
     resnet_print_time();
 #endif
   }

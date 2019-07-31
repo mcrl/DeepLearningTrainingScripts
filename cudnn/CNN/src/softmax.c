@@ -107,7 +107,7 @@ float get_loss(softmax_layer *l, int *label_in)
   float *result = (float *)malloc(global_size);
   read_buffer(result, l->output, true);
 
-  // computation for gathering result buffer
+  // FIXME: rearrange below statements to a subroutine
   int *recvcounts = (int *)malloc(num_nodes * sizeof(int));
   int *displs = (int *)malloc(num_nodes * sizeof(int));
 

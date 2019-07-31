@@ -146,15 +146,15 @@ void train_fwd_conv_layer(conv_layer *l)
 
 void train_bwd_conv_layer(conv_layer *l)
 {
-  START_CNN_TIMER(bwd_data_t);
-  execute_conv_bwd_data(
-      l->conv_desc, l->bwd_data_algo, l->filter, l->d_output, l->d_input, l->ws_bwd_data);
-  STOP_CNN_TIMER(bwd_data_t);
-
   START_CNN_TIMER(bwd_filter_t);
   execute_conv_bwd_filter(
       l->conv_desc, l->bwd_filter_algo, l->input, l->d_output, l->d_filter, l->ws_bwd_filter);
   STOP_CNN_TIMER(bwd_filter_t);
+
+  START_CNN_TIMER(bwd_data_t);
+  execute_conv_bwd_data(
+      l->conv_desc, l->bwd_data_algo, l->filter, l->d_output, l->d_input, l->ws_bwd_data);
+  STOP_CNN_TIMER(bwd_data_t);
 
   START_CNN_TIMER(bwd_update_t);
   execute_gradient_descent(params.learning_rate, l->d_filter, l->filter);
