@@ -8,11 +8,16 @@
 
 #include "execute.h"
 
+//////////////////////////////////////////////////////////
+
 //#define USE_CUDNN_FC
 #define USE_TENSOR_CORE
 //#define USE_TIMER
 #define USE_LOCK_STEP
+#define USE_PROFILED_ALGO
 //#define PRINT_LOSS
+
+//////////////////////////////////////////////////////////
 
 #ifdef USE_TIMER
 #define START_CNN_TIMER(name) \
@@ -36,9 +41,10 @@ do {\
 #else
 #define START_CNN_TIMER(name)
 #define STOP_CNN_TIMER(name)
-#endif // USE_TIMER
+#endif
 
-// NETWORK CONNECTION HELPER
+//////////////////////////////////////////////////////////
+
 #define CONNECT(up, down) \
 do {\
   LOG(connect_up_down);\
@@ -119,7 +125,8 @@ do {\
   assert(bind_buffer3((concat).d_input[0], (branch).d_output[0], (concat).d_output, 0) == 0);\
 } while (0)
 
-// PARAM FUNCTIONS
+//////////////////////////////////////////////////////////
+
 #define INIT_CONV_RES(l) \
 do {\
   float n_in = (l)->filter_height * (l)->filter_width * (l)->input_channel;\
@@ -197,6 +204,8 @@ do { param += get_bn_param(l, param); } while (0)
 
 #define GET_BIAS(l) \
 do { param += get_bias(l, param); } while (0)
+
+//////////////////////////////////////////////////////////
 
 #define LEN_NAME 256
 

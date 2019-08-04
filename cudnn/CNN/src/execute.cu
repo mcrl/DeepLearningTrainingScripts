@@ -441,6 +441,7 @@ int execute_get_conv_bwd_data_algo(
     gpu_mem w, gpu_mem dy, gpu_mem dx,
     cudnnConvolutionBwdDataAlgo_t *algo)
 {
+#ifndef USE_PROFILED_ALGO
   chkCUDNN(cudnnGetConvolutionBackwardDataAlgorithm(
         cudnn_handle[0],
         w->filter_desc,
@@ -451,18 +452,46 @@ int execute_get_conv_bwd_data_algo(
         0,
         algo));
 
-  // FIXME: hard coded for a while
-  if ((int)(*algo) == 3) {
+  if (*algo == CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING) {
     int height = w->dim[2];
     int width = w->dim[3];
 
-    if (height == 3 && width == 3) {
-      *((int *)algo) = 4;
+    if (height == 3 && width == 3 || height == 5 && width == 5) {
+      *algo = CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED;
     }
     else {
-      *((int *)algo) = 2;
+      *algo = CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT;
     }
   }
+#else
+  int count_required;
+  chkCUDNN(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(
+        cudnn_handle[0], &count_required));
+
+  cudnnConvolutionBwdDataAlgoPerf_t *perf_list =
+    (cudnnConvolutionBwdDataAlgoPerf_t *)
+    malloc(sizeof(cudnnConvolutionBwdDataAlgoPerf_t) * count_required);
+
+  int count_provided;
+  chkCUDNN(cudnnFindConvolutionBackwardDataAlgorithm(
+        cudnn_handle[0],
+        w->filter_desc,
+        dy->tensor_desc[0],
+        convDesc,
+        dx->tensor_desc[0],
+        count_required,
+        &count_provided,
+        perf_list));
+
+  float min_time = 1e9;
+  for (int i = 0; i < count_provided; i++) {
+    if (perf_list[i].status == CUDNN_STATUS_SUCCESS) {
+      if (perf_list[i].time < min_time) {
+        min_time = perf_list[i].time;
+        *algo = perf_list[i].algo;
+      }
+    }
+#endif
 
   return 0;
 }
@@ -482,13 +511,6 @@ int execute_get_conv_bwd_data_ws_size(
         algo,
         ws_size));
 
-#if defined(USE_LOG)
-  // FIXME: remove this statement before commit to remote repo
-  fprintf(stderr, "%s: [algo=%d] %d KB (%d MB)\n",
-      __func__, (int)algo,
-      (int)(*ws_size / 1024), (int)(*ws_size / 1024 / 1024));
-#endif
-
   return 0;
 }
 
@@ -497,6 +519,7 @@ int execute_get_conv_bwd_filter_algo(
     gpu_mem x, gpu_mem dy, gpu_mem dw,
     cudnnConvolutionBwdFilterAlgo_t *algo)
 {
+#ifndef USE_PROFILED_ALGO
   chkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithm(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -507,8 +530,46 @@ int execute_get_conv_bwd_filter_algo(
         0,
         algo));
 
-  // FIXME: hard coded for a while
-  if ((int)(*algo) == 2) *((int *)algo) = 3;
+  if (*algo == CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT) {
+    int height = dw->dim[2];
+    int width = dw->dim[3];
+
+    if (height == 3 && width == 3 || height == 5 && width == 5) {
+      *algo = CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED;
+    }
+    else {
+      *algo = CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3;
+    }
+  }
+#else
+  int count_required;
+  chkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(
+        cudnn_handle[0], &count_required));
+
+  cudnnConvolutionBwdFilterAlgoPerf_t *perf_list =
+    (cudnnConvolutionBwdFilterAlgoPerf_t *)
+    malloc(sizeof(cudnnConvolutionBwdFilterAlgoPerf_t) * count_required);
+
+  int count_provided;
+  chkCUDNN(cudnnFindConvolutionBackwardFilterAlgorithm(
+        cudnn_handle[0],
+        x->tensor_desc[0],
+        dy->tensor_desc[0],
+        convDesc,
+        dw->filter_desc,
+        count_required,
+        &count_provided,
+        perf_list));
+
+  float min_time = 1e9;
+  for (int i = 0; i < count_provided; i++) {
+    if (perf_list[i].status == CUDNN_STATUS_SUCCESS) {
+      if (perf_list[i].time < min_time) {
+        min_time = perf_list[i].time;
+        *algo = perf_list[i].algo;
+      }
+    }
+#endif
 
   return 0;
 }
@@ -528,13 +589,6 @@ int execute_get_conv_bwd_filter_ws_size(
         algo,
         ws_size));
 
-#if defined(USE_LOG)
-  // FIXME: remove this statement before commit to remote repo
-  fprintf(stderr, "%s: [algo=%d] %d KB (%d MB)\n",
-      __func__, (int)algo,
-      (int)(*ws_size / 1024), (int)(*ws_size / 1024 / 1024));
-#endif
-
   return 0;
 }
 
@@ -543,6 +597,7 @@ int execute_get_conv_fwd_algo(
     gpu_mem x, gpu_mem w, gpu_mem y,
     cudnnConvolutionFwdAlgo_t *algo)
 {
+#ifndef USE_PROFILED_ALGO
   chkCUDNN(cudnnGetConvolutionForwardAlgorithm(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -553,18 +608,47 @@ int execute_get_conv_fwd_algo(
         0,
         algo));
 
-  // FIXME: hard coded for a while
-  if ((int)(*algo) == 5) {
+  if (*algo == CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING) {
     int height = w->dim[2];
     int width = w->dim[3];
 
-    if (height == 3 && width == 3) {
-      *((int *)algo) = 6;
+    if (height == 3 && width == 3 || height == 5 && width == 5) {
+      *algo = CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED;
     }
     else {
-      *((int *)algo) = 4;
+      *algo = CUDNN_CONVOLUTION_FWD_ALGO_FFT;
     }
   }
+#else
+  int count_required;
+  chkCUDNN(cudnnGetConvolutionForwardAlgorithmMaxCount(
+        cudnn_handle[0], &count_required));
+
+  cudnnConvolutionFwdAlgoPerf_t *perf_list =
+    (cudnnConvolutionFwdAlgoPerf_t *)
+    malloc(sizeof(cudnnConvolutionFwdAlgoPerf_t) * count_required);
+
+  int count_provided;
+  chkCUDNN(cudnnFindConvolutionForwardAlgorithm(
+        cudnn_handle[0],
+        x->tensor_desc[0],
+        w->filter_desc,
+        convDesc,
+        y->tensor_desc[0],
+        count_required,
+        &count_provided,
+        perf_list));
+
+  float min_time = 1e9;
+  for (int i = 0; i < count_provided; i++) {
+    if (perf_list[i].status == CUDNN_STATUS_SUCCESS) {
+      if (perf_list[i].time < min_time) {
+        min_time = perf_list[i].time;
+        *algo = perf_list[i].algo;
+      }
+    }
+  }
+#endif
 
   return 0;
 }
@@ -583,13 +667,6 @@ int execute_get_conv_fwd_ws_size(
         y->tensor_desc[0],
         algo,
         ws_size));
-
-#if defined(USE_LOG)
-  // FIXME: remove this statement before commit to remote repo
-  fprintf(stderr, "%s: [algo=%d] %d KB (%d MB)\n",
-      __func__, (int)algo,
-      (int)(*ws_size / 1024), (int)(*ws_size / 1024 / 1024));
-#endif
 
   return 0;
 }

@@ -2,14 +2,11 @@
 
 ####################################################
 
-batch_size=32
-iteration=10
-
-data_path=/home/data/imagenet_10240.data
-label_path=/home/data/imagenet_10240.label
+batch_size=16
+iteration=21
 
 host_list=("c0" "c1" "c2" "c3" "c4" "c5" "c6" "c8")
-dev_list=("0" "1" "2" "3")
+dev_list=("3" "2" "1" "0")
 
 ####################################################
 
@@ -55,12 +52,14 @@ mkdir -p model
 mkdir -p obj
 mkdir -p log
 
-for net in vgg resnet densenet ; do
+for net in vgg resnet densenet inception ; do
+data_path=/home/data/imagenet_10240_${net}.data
+label_path=/home/data/imagenet_10240_${net}.label
 make ${net}
 run_test 1 1 ${net}
 run_test 1 2 ${net}
 run_test 1 4 ${net}
 run_test 2 4 ${net}
 run_test 4 4 ${net}
-run_test 8 4 ${net}
+#run_test 8 4 ${net}
 done
