@@ -1399,12 +1399,12 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
     float *data_in = NULL;
     int *label_in = NULL;
 
-    for (int b = 0; b < num_batches; b++) {
 #ifdef USE_LOCK_STEP
-      synch_device();
-      clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
+    synch_device();
+    clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
 #endif
- 
+
+    for (int b = 0; b < num_batches; b++) {
       data_in = train_data + b * params.batch_size * params.width * params.height * params.channel;
       label_in = train_label + b * params.batch_size;
 
@@ -1440,6 +1440,11 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 #endif
         is_first = false;
       }
+
+#ifdef USE_LOCK_STEP
+      synch_device();
+      clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
+#endif
     }
   }
 

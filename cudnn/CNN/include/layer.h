@@ -13,8 +13,7 @@
 //#define USE_CUDNN_FC
 #define USE_TENSOR_CORE
 //#define USE_TIMER
-//#define USE_LOCK_STEP
-#define USE_PROFILED_ALGO
+#define USE_LOCK_STEP
 //#define PRINT_LOSS
 
 //////////////////////////////////////////////////////////

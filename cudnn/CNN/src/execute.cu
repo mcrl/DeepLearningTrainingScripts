@@ -51,6 +51,69 @@ do {\
   }\
 } while (0)
 
+static const char *conv_bwd_data_algo_msg(cudnnConvolutionBwdDataAlgo_t algo) {
+  switch (algo) {
+    case CUDNN_CONVOLUTION_BWD_DATA_ALGO_0:
+      return "CUDNN_CONVOLUTION_BWD_DATA_ALGO_0";
+    case CUDNN_CONVOLUTION_BWD_DATA_ALGO_1:
+      return "CUDNN_CONVOLUTION_BWD_DATA_ALGO_1";
+    case CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT:
+      return "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT";
+    case CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING:
+      return "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING";
+    case CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD:
+      return "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD";
+    case CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED:
+      return "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED";
+    default:
+      return "UNKNOWN_ALGO";
+  }
+}
+
+static const char *conv_bwd_filter_algo_msg(cudnnConvolutionBwdFilterAlgo_t algo) {
+  switch (algo) {
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0";
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1";
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT";
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3";
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD";
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED";
+    case CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING:
+      return "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING";
+    default:
+      return "UNKNOWN_ALGO";
+  }
+}
+
+static const char *conv_fwd_algo_msg(cudnnConvolutionFwdAlgo_t algo) {
+  switch (algo) {
+    case CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM";
+    case CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM";
+    case CUDNN_CONVOLUTION_FWD_ALGO_GEMM:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_GEMM";
+    case CUDNN_CONVOLUTION_FWD_ALGO_DIRECT:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_DIRECT";
+    case CUDNN_CONVOLUTION_FWD_ALGO_FFT:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_FFT";
+    case CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING";
+    case CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD";
+    case CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED:
+      return "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED";
+    default:
+      return "UNKNOWN_ALGO";
+  }
+}
+
 ////////////////////////////////////////////////////////////
 // Executer Management API
 ////////////////////////////////////////////////////////////
@@ -441,7 +504,7 @@ int execute_get_conv_bwd_data_algo(
     gpu_mem w, gpu_mem dy, gpu_mem dx,
     cudnnConvolutionBwdDataAlgo_t *algo)
 {
-#ifndef USE_PROFILED_ALGO
+#if 0
   chkCUDNN(cudnnGetConvolutionBackwardDataAlgorithm(
         cudnn_handle[0],
         w->filter_desc,
@@ -491,6 +554,9 @@ int execute_get_conv_bwd_data_algo(
         *algo = perf_list[i].algo;
       }
     }
+  }
+
+  printf("%s(): %s\n", __func__, conv_bwd_data_algo_msg(*algo));
 #endif
 
   return 0;
@@ -519,7 +585,7 @@ int execute_get_conv_bwd_filter_algo(
     gpu_mem x, gpu_mem dy, gpu_mem dw,
     cudnnConvolutionBwdFilterAlgo_t *algo)
 {
-#ifndef USE_PROFILED_ALGO
+#if 0
   chkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithm(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -569,6 +635,9 @@ int execute_get_conv_bwd_filter_algo(
         *algo = perf_list[i].algo;
       }
     }
+  }
+
+  printf("%s(): %s\n", __func__, conv_bwd_filter_algo_msg(*algo));
 #endif
 
   return 0;
@@ -597,7 +666,7 @@ int execute_get_conv_fwd_algo(
     gpu_mem x, gpu_mem w, gpu_mem y,
     cudnnConvolutionFwdAlgo_t *algo)
 {
-#ifndef USE_PROFILED_ALGO
+#if 0
   chkCUDNN(cudnnGetConvolutionForwardAlgorithm(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -648,6 +717,8 @@ int execute_get_conv_fwd_algo(
       }
     }
   }
+
+  printf("%s(): %s\n", __func__, conv_fwd_algo_msg(*algo));
 #endif
 
   return 0;
