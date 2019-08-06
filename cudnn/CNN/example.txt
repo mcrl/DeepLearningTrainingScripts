@@ -1,4 +1,0 @@
-mpirun --host c1,c2 -x CUDA_VISIBLE_DEVICES=0,1 ./vgg 128 10 data/imagenet_3200.data data/imagenet_3200.label model/vgg_128_10
-mpirun --host c1,c2 -x CUDA_VISIBLE_DEVICES=0,1 ./resnet 128 10 data/imagenet_3200.data data/imagenet_3200.label model/resnet_128_10
-mpirun --host c1,c2 -x CUDA_VISIBLE_DEVICES=0,1 ./densenet 128 10 data/imagenet_3200.data data/imagenet_3200.label model/densenet_128_10
-mpirun --host c1,c2 -x CUDA_VISIBLE_DEVICES=0,1 ./inception 128 10 data/imagenet_3200.data data/imagenet_3200.label model/inception_128_10

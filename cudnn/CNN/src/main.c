@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
   #ifdef PRINT_LOSS
   params.epochs = 100;
   #else
-  params.epochs = 1;
+  params.epochs = 10;
   #endif
   params.result = argv[5];
 

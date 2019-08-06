@@ -13,7 +13,7 @@
 //#define USE_CUDNN_FC
 #define USE_TENSOR_CORE
 //#define USE_TIMER
-#define USE_LOCK_STEP
+//#define USE_LOCK_STEP
 #define USE_PROFILED_ALGO
 //#define PRINT_LOSS
 
@@ -86,11 +86,32 @@ do {\
   }\
 } while (0)
 
+#define CONNECT_TO_ELT_WITH_BIAS(up, bias, elt, j) \
+do {\
+  LOG(connect_up_bias_elt);\
+  assert(bind_buffer2((elt).input[j], (up).output) == 0);\
+  if (j == 0) {\
+    assert(bind_buffer3((elt).d_output, (up).d_output, (up).d_input, 0) == 0);\
+  }\
+  else {\
+    assert(bind_buffer2((up).d_output, (elt).d_output) == 0);\
+  }\
+  assert(bind_buffer2((bias).output, (elt).input[j]) == 0);\
+  assert(bind_buffer2((bias).d_output, (elt).d_output) == 0);\
+} while (0)
+
 #define CONNECT_FROM_ELT(elt, down) \
 do {\
-  LOG(connect_elt_own);\
+  LOG(connect_elt_down);\
   assert(bind_buffer2((down).input, (elt).output) == 0);\
   assert(bind_buffer2((down).d_input, (elt).d_output) == 0);\
+} while (0)
+
+#define CONNECT_FROM_ELT_TO_ELT(up_elt, down_elt, j) \
+do {\
+  LOG(connect_elt_elt);\
+  assert(bind_buffer2((down_elt).input[j], (up_elt).output) == 0);\
+  assert(bind_buffer2((down_elt).d_output, (up_elt).d_output) == 0);\
 } while (0)
 
 #define CONNECT_TO_CONCAT(up, concat, j) \

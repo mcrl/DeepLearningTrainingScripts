@@ -9,7 +9,6 @@
 #include "utils.h"
 #include "execute.h"
 
-/* MPI */
 extern int node_id;
 
 #define RESNET50
@@ -928,6 +927,7 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
     for (int b = 0; b < num_batches; b++) {
 #ifdef USE_LOCK_STEP
+      synch_device();
       clock_gettime(CLOCK_MONOTONIC, &t_begin[COPY_INPUT]);
 #endif
 
@@ -937,11 +937,13 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
       resnet_copy_input(data_in, label_in);
 
 #ifdef USE_LOCK_STEP
+      synch_device();
       clock_gettime(CLOCK_MONOTONIC, &t_end[COPY_INPUT]);
       elapsed_time[COPY_INPUT] += diff_timespec_ms(t_begin[COPY_INPUT], t_end[COPY_INPUT]);
 #endif
 
       if (is_first) {
+        synch_device();
         clock_gettime(CLOCK_MONOTONIC, &t_begin[HEAD_ITERATION]);
       }
 
@@ -949,7 +951,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
 #ifdef PRINT_LOSS
       float l = get_loss(&net.softmax, label_in);
-      /* MPI */
       if (node_id == 0) {
         printf("loss for %d/%d : %f\n", b, num_batches, l);
       }
@@ -966,9 +967,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 #endif
         is_first = false;
       }
-#ifdef USE_LOCK_STEP
-      synch_device();
-#endif
     }
   }
 
@@ -976,7 +974,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
   clock_gettime(CLOCK_MONOTONIC, &t_end[FULL_ITERATION]);
   elapsed_time[FULL_ITERATION] = diff_timespec_ms(t_begin[FULL_ITERATION], t_end[FULL_ITERATION]);
 
-  /* MPI */
   if (node_id == 0) {
     float training_time = elapsed_time[FULL_ITERATION] - elapsed_time[COPY_INPUT];
     float first_training_time = elapsed_time[HEAD_ITERATION];
@@ -994,7 +991,6 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
   resnet_get_param(param_out);
 
-  /* MPI */
   if (node_id == 0) {
     if (exists(params.result)) {
       FILE *f = fopen(params.result, "rb");
