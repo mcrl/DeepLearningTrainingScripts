@@ -32,28 +32,32 @@ InteractionLayer *interaction[MAXDEV];
 
 vector<Data> train_data, test_data;
 
-
-// returns (#correct, avg loss)
+/*
+ * returns (number of correct guesses, avg loss)
+ */
 pair<int, float> batch_inference (vector<Data>& data, int ndev) {
     float threshold = 0.5;
     int accuracy = 0, batch_size = (int) data.size();
     float loss = 0.0;
 
+    /* Prepare input: convert data object to arrays */
     for (int i = 0; i < batch_size; i++) {
         data[i].denseToArray(dense_input[ndev] + numDense * i);
         data[i].sparseToArray(sparse_input[ndev], i);
         data[i].sparseToBagArray(sparse_input_bag[ndev], i);
         answer[ndev][i] = data[i].res;
     }
+    dense_in[ndev]->hostToDevice(dense_input[ndev], batch_size * numDense * sizeof(float) );
+
 
     /* bot fc */
-    dense_in[ndev]->hostToDevice(dense_input[ndev], batch_size * numDense * sizeof(float) );
     botFC[ndev][0]->forward(dense_in[ndev], botFC_z[ndev][0]);
     reLU[ndev]->forward(botFC_z[ndev][0], botFC_a[ndev][0]);
     for (int i = 1; i < botFCLayers.size()-1; i++) {
         botFC[ndev][i]->forward(botFC_a[ndev][i-1], botFC_z[ndev][i]);
         reLU[ndev]->forward(botFC_z[ndev][i], botFC_a[ndev][i]);
     }
+
 
     /* embedding */
     for (int i = 0; i < numSparse; i++) {
@@ -63,8 +67,10 @@ pair<int, float> batch_inference (vector<Data>& data, int ndev) {
         else embedding[ndev][i]->forward(sparse_in[ndev][i], sparse_out[ndev][i]);
     }
 
+
     /* interact */
     interaction[ndev]->forward(botFC_a[ndev][botFCLayers.size()-2], sparse_out[ndev], top_in[ndev]);
+
 
     /* top fc */
     topFC[ndev][0]->forward(top_in[ndev], topFC_z[ndev][0]);
@@ -94,17 +100,16 @@ void batch_train (vector<Data>& data, int ndev) {
 
     int batch_size = (int) data.size();
     
-    /* initial gradient */
+    /* Calculate initial gradient */
     cudaDeviceSynchronize();
     for (int i = 0; i < batch_size; i++) {
         float y = answer[ndev][i], a = host_output[ndev][i];
         host_output_grad[ndev][i] = ( (1 - y) / (1 - a) - y / a);
     }
+    topFC_a_grad[ndev][topFCLayers.size()-2]->hostToDevice(host_output_grad[ndev], batch_size * sizeof(float) );
     cudaDeviceSynchronize();
 
-    topFC_a_grad[ndev][topFCLayers.size()-2]->hostToDevice(host_output_grad[ndev], batch_size * sizeof(float) );
-
-    /* backward top fc */
+    /* top fc backward */
     for (int i = topFCLayers.size() - 2; i >= 1; i--) {
         if ( i == topFCLayers.size() - 2 ) sigmoid[ndev]->backward(topFC_z[ndev][i], topFC_z_grad[ndev][i], topFC_a[ndev][i], topFC_a_grad[ndev][i]);
         else reLU[ndev]->backward(topFC_z[ndev][i], topFC_z_grad[ndev][i], topFC_a[ndev][i], topFC_a_grad[ndev][i]);
@@ -113,18 +118,21 @@ void batch_train (vector<Data>& data, int ndev) {
     reLU[ndev]->backward(topFC_z[ndev][0], topFC_z_grad[ndev][0], topFC_a[ndev][0], topFC_a_grad[ndev][0]);
     topFC[ndev][0]->backward(top_in[ndev], top_in_grad[ndev], topFC_z_grad[ndev][0]);
 
-    /* backward interact */
+
+    /* interaction backward */
     interaction[ndev]->backward(botFC_a[ndev][botFCLayers.size()-2], botFC_a_grad[ndev][botFCLayers.size()-2], 
                                 sparse_out[ndev], sparse_out_grad[ndev],
                                 top_in[ndev], top_in_grad[ndev]);
 
-    /* backward embedding */
+
+    /* embedding backward */
     for (int i = 0; i < numSparse; i++) {
         if ( USEBAG ) embeddingbag[ndev][i]->backward(sparse_in_bag[ndev][i], sparse_out[ndev][i], sparse_out_grad[ndev][i]);
         else embedding[ndev][i]->backward(sparse_in[ndev][i], sparse_out[ndev][i], sparse_out_grad[ndev][i]);
     }
 
-    /* backward bot fc */
+
+    /* bot fc backward */
     for (int i = botFCLayers.size() - 2; i >= 1; i--) {
         reLU[ndev]->backward(botFC_z[ndev][i], botFC_z_grad[ndev][i], botFC_a[ndev][i], botFC_a_grad[ndev][i]);
         botFC[ndev][i]->backward(botFC_a[ndev][i-1], botFC_a_grad[ndev][i-1], botFC_z_grad[ndev][i]);
@@ -132,7 +140,14 @@ void batch_train (vector<Data>& data, int ndev) {
     reLU[ndev]->backward(botFC_z[ndev][0], botFC_z_grad[ndev][0], botFC_a[ndev][0], botFC_a_grad[ndev][0]);
     botFC[ndev][0]->backward(dense_in[ndev], dense_in_grad[ndev], botFC_z_grad[ndev][0]);
 
-    /* Reduce & Gather fc deltas */
+
+    /*
+     * At this moment, each GPU have calculated its own gradients.
+     * Now we should reduce & gather every gradients before performing weight update.
+     * Note that for embedding(bag) layers, inputs should be also gathered.
+     */
+
+    /* Reduce & gather top FC gradients */
     for (int i = 0; i < topFCLayers.size() - 1; i++) {
         FCLayer *fc = topFC[ndev][i];
         NCCL_CALL( ncclAllReduce(
@@ -146,6 +161,8 @@ void batch_train (vector<Data>& data, int ndev) {
             comms[ndev], streams[ndev]
         ));
     }
+
+    /* Reduce & gather bot FC gradients */
     for (int i = 0; i < botFCLayers.size() - 1; i++) {
         FCLayer *fc = botFC[ndev][i];
         NCCL_CALL( ncclAllReduce(
@@ -160,7 +177,7 @@ void batch_train (vector<Data>& data, int ndev) {
         ));
     }
 
-    /* Gather embeddingbag delta (also need to gather input) */
+    /* Gather embeddingbag gradient (also need to gather input) */
     if ( USEBAG ) {
         for (int i = 0; i < numSparse; i++) {
             EmbeddingBag *emb = embeddingbag[ndev][i];
@@ -168,7 +185,7 @@ void batch_train (vector<Data>& data, int ndev) {
             NCCL_CALL( ncclAllGather(emb->delta, emb->gatheredDelta, emb->batch_size * emb->vector_size, ncclFloat32, comms[ndev], streams[ndev]) );
         }
     }
-    /* Gather embedding delta (also need to gather input) */
+    /* Gather embedding gradient (also need to gather input) */
     else {
         for (int i = 0; i < numSparse; i++) {
             Embedding *emb = embedding[ndev][i];
@@ -177,11 +194,11 @@ void batch_train (vector<Data>& data, int ndev) {
         }
     }
 
-    /* update fc */
+    /* update top & bot FC weights */
     for (int i = 0; i < topFCLayers.size() - 1; i++) topFC[ndev][i]->update();
     for (int i = 0; i < botFCLayers.size() - 1; i++) botFC[ndev][i]->update();
 
-    /* update embedding */
+    /* update embedding(bag) table */
     for (int i = 0; i < numSparse; i++) {
         if ( USEBAG ) embeddingbag[ndev][i]->update();
         else embedding[ndev][i]->update();
@@ -325,27 +342,29 @@ int main (int argc, char **argv) {
         int accuracy = 0, accuracy_sum = 0;
         float loss = 0.0, loss_sum = 0.0, iter_time = 0.0;
 
+        /* 
+         * Testing
+         */
         for (int batch = 0; batch < testBatches; batch++) {
             if( is_host() ) cout << "\rTesting batch #" << batch << "/" << testBatches << std::flush;
-
+            if( is_host() ) startTimer("test_iteration");
 
             /* Scatter data */
+            /* Serialization is needed since we cannot directly send Data objects. */
             vector<Data> batch_data;
             if( is_host() ) { // host : read data and send to others
                 for (int i = 0; i < batch_size; i++) batch_data.push_back(test_data[batch * batch_size + i]);
                 for (int i = 0; i < batch_size; i++) batch_data[i].serialize( serialized_data + i * 40 );
             }
 
-            MPI_Barrier(MPI_COMM_WORLD);
-            if( is_host() ) startTimer("test_iteration");
-
             MPI_Scatter(serialized_data, batch_size / NNODE * 40, MPI_INT, serialized_data, batch_size / NNODE * 40, MPI_INT, hostnode, MPI_COMM_WORLD);
+
             batch_data.resize( batch_size / NNODE );
             if( !is_host() ) { // non-host : recieve serialized data and deserialize
                 for (int i = 0; i < batch_size / NNODE; i++) batch_data[i].deserialize( serialized_data + i * 40 );
             }
 
-            /* Run mini-batch */
+            /* Divide batch into mini-batches. Run mini-batch */
             vector<Data> mini_batch[4];
             pair<int, float> res[4];
             #pragma omp parallel
@@ -363,13 +382,12 @@ int main (int argc, char **argv) {
                 loss += res[ndev].second / testBatches / NDEV / NNODE;
             }
 
-
             /* Collect loss across nodes */
             MPI_Reduce(&accuracy, &accuracy_sum, 1, MPI_INT, MPI_SUM, hostnode, MPI_COMM_WORLD);
             MPI_Reduce(&loss, &loss_sum, 1, MPI_FLOAT, MPI_SUM, hostnode, MPI_COMM_WORLD);
-            MPI_Barrier(MPI_COMM_WORLD);
 
             if( is_host() ) iter_time += stopTimer("test_iteration");
+            MPI_Barrier(MPI_COMM_WORLD);
         }
 
         if( is_host() ) {
@@ -380,9 +398,12 @@ int main (int argc, char **argv) {
 
         if ( inference_only ) continue;
 
+
+        /* 
+         * Training
+         */
         iter_time = 0.0;
         for (int batch = 0; batch < trainBatches; batch++) {
-            // startTimer("batch");
             if ( is_host() ) cout << "\rTraining batch #" << batch << "/" << trainBatches << std::flush;
             
             /* Scatter data */

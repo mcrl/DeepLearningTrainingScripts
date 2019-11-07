@@ -5,8 +5,8 @@
 batch_size=16
 iteration=10
 
+# host_list=("c0")
 host_list=("c4" "c3" "c2" "c0" "c5" "c6" "c8" "c1")
-# host_list=("c0" "c1")
 dev_list=("0" "1" "2" "3")
 
 ####################################################
@@ -56,8 +56,5 @@ run_test() {
 mkdir -p obj
 mkdir -p log
 
-for net in dlrm; do
-  make clean
-  make ${net}
-  run_test 4 4 ${net}
-done
+make dlrm
+run_test 4 4 dlrm

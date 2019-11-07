@@ -2,10 +2,12 @@
 
 using namespace std;
 
+
+// these configurations should be modified at the start of the main
 std::vector<int> botFCLayers = {13, 512, 256, 64, 16};
 std::vector<int> topFCLayers = {367, 512, 256, 1};
 
-int batch_size = 1024, epochs = 500;
+int batch_size = 131072, epochs = 500;
 int numSparse = 26, numDense = 13;
 int vector_size = 16, bag_size = 4;
 
@@ -17,8 +19,7 @@ int vector_size = 16, bag_size = 4;
 int trainBatches = 300000 * 128 / batch_size, testBatches = 50000 * 128 / batch_size; // full training
 
 float one = 1.0, zero = 0.0, minusone = -1.0;
-float lr = -1.0 / batch_size; // this should be modified at start of the main
-
+float lr = -1.0 / batch_size; 
 // bool inference_only = true;
 bool inference_only = false;
 
@@ -52,7 +53,6 @@ const char *cublasGetErrorString(cublasStatus_t status)
     default: return "";
   }
 }
-
 
 
 cudaError_t cudaStat;
@@ -124,8 +124,6 @@ void nccl_init () {
     {
         int ndev = omp_get_thread_num();
         CUDA_CALL( cudaSetDevice(ndev) );
-        // printf("[Process %d] Trying to initialize nccl %d / %d\n", mpi_world_rank, mpi_world_rank * NDEV + ndev,  mpi_world_size * NDEV);
         NCCL_CALL( ncclCommInitRank(&comms[ndev], mpi_world_size * NDEV, nccl_id, mpi_world_rank * NDEV + ndev) );
-        // printf("[Process %d] Successfully initialized nccl %d\n", mpi_world_rank, mpi_world_rank * NDEV + ndev);
     }
 }

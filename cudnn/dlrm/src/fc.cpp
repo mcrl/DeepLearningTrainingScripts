@@ -34,10 +34,8 @@ FCLayer::~FCLayer () {
 
 }
 
-// t_output is the output of this function
+
 void FCLayer::forward (Tensor *t_input, Tensor *t_output) {
-    // TODO: assert each tensor's sizes
-    // TODO: use most appropriate algorithm
 
     CUDA_CALL( cudaSetDevice(ndev) );
 

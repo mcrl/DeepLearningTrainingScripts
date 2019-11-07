@@ -84,11 +84,9 @@ void InteractionLayer::forward (Tensor *t_dense, Tensor *t_sparse[], Tensor *t_o
 
     CUDA_CALL( cudaSetDevice(ndev) );
 
-    // 1. concat sparse
     for (int i = 0; i < numSparse; i++) h_sparse[i] = t_sparse[i]->d_mem;
 
     CUDA_CALL( cudaMemcpy(d_sparse, h_sparse, numSparse * sizeof(float*), cudaMemcpyHostToDevice) );
-
 
     dim3 blocks2((batch_size+15) / 16, (outputSize + 15) / 16 );
     dim3 threadPerBlock2(16, 16);

@@ -12,6 +12,7 @@ ActivationLayer::ActivationLayer (int ndev_, const char* type) {
         CUDNN_CALL ( cudnnSetActivationDescriptor(actDesc, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0));
     }
 }
+
 void ActivationLayer::forward (Tensor *t_input, Tensor *t_output) {
     CUDA_CALL( cudaSetDevice(ndev) );
     CUBLAS_CALL( cublasSetPointerMode(cublas[ndev], CUBLAS_POINTER_MODE_HOST) );

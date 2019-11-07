@@ -97,7 +97,7 @@ inline bool file_exists (const char *fname) {
 }
 
 /////////////////////////////////////////////////////////////////////
-//                        Read and Compress data                   //
+//                     Read and Preprocess data                    //
 /////////////////////////////////////////////////////////////////////
 void data_preprocess () {
     cout << "[Preprocess raw data]\n";
@@ -187,7 +187,6 @@ void data_load (int numTrain, int numTest, vector<Data>& train_data, vector<Data
     }
     cout << '\n';
 
-    // TODO: random shuffle here?
     random_shuffle(train_data.begin(), train_data.end());
     random_shuffle(test_data.begin(), test_data.end());
 }
