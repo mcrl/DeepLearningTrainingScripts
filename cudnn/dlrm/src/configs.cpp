@@ -27,7 +27,7 @@ int NDEV = 1;
 int NNODE = 1;
 int hostdev = 0;
 int hostnode = 0;
-int USEBAG = 1;
+int USEBAG = 0;
 
 
 /***************************************************************/
