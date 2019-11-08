@@ -13,7 +13,7 @@
 
 using namespace std;
 
-int *numFeatures;
+int *num_features;
 float *dense_input[MAXDEV], *answer[MAXDEV];
 int **sparse_input[MAXDEV], **sparse_input_bag[MAXDEV];
 float *host_output[MAXDEV], *host_output_grad[MAXDEV];
@@ -42,12 +42,12 @@ pair<int, float> batch_inference (vector<Data>& data, int ndev) {
 
     /* Prepare input: convert data object to arrays */
     for (int i = 0; i < batch_size; i++) {
-        data[i].denseToArray(dense_input[ndev] + numDense * i);
+        data[i].denseToArray(dense_input[ndev] + num_dense * i);
         data[i].sparseToArray(sparse_input[ndev], i);
         data[i].sparseToBagArray(sparse_input_bag[ndev], i);
         answer[ndev][i] = data[i].res;
     }
-    dense_in[ndev]->hostToDevice(dense_input[ndev], batch_size * numDense * sizeof(float) );
+    dense_in[ndev]->hostToDevice(dense_input[ndev], batch_size * num_dense * sizeof(float) );
 
 
     /* bot fc */
@@ -60,7 +60,7 @@ pair<int, float> batch_inference (vector<Data>& data, int ndev) {
 
 
     /* embedding */
-    for (int i = 0; i < numSparse; i++) {
+    for (int i = 0; i < num_sparse; i++) {
         if ( USEBAG ) sparse_in_bag[ndev][i]->hostToDevice(sparse_input_bag[ndev][i], batch_size * bag_size * sizeof(int) );
         else sparse_in[ndev][i]->hostToDevice(sparse_input[ndev][i], batch_size * sizeof(int) );
         if( USEBAG ) embeddingbag[ndev][i]->forward(sparse_in_bag[ndev][i], sparse_out[ndev][i]);
@@ -126,7 +126,7 @@ void batch_train (vector<Data>& data, int ndev) {
 
 
     /* embedding backward */
-    for (int i = 0; i < numSparse; i++) {
+    for (int i = 0; i < num_sparse; i++) {
         if ( USEBAG ) embeddingbag[ndev][i]->backward(sparse_in_bag[ndev][i], sparse_out[ndev][i], sparse_out_grad[ndev][i]);
         else embedding[ndev][i]->backward(sparse_in[ndev][i], sparse_out[ndev][i], sparse_out_grad[ndev][i]);
     }
@@ -179,7 +179,7 @@ void batch_train (vector<Data>& data, int ndev) {
 
     /* Gather embeddingbag gradient (also need to gather input) */
     if ( USEBAG ) {
-        for (int i = 0; i < numSparse; i++) {
+        for (int i = 0; i < num_sparse; i++) {
             EmbeddingBag *emb = embeddingbag[ndev][i];
             NCCL_CALL( ncclAllGather(emb->in, emb->gatheredIn, emb->batch_size * emb->bag_size, ncclInt32, comms[ndev], streams[ndev]) );
             NCCL_CALL( ncclAllGather(emb->delta, emb->gatheredDelta, emb->batch_size * emb->vector_size, ncclFloat32, comms[ndev], streams[ndev]) );
@@ -187,7 +187,7 @@ void batch_train (vector<Data>& data, int ndev) {
     }
     /* Gather embedding gradient (also need to gather input) */
     else {
-        for (int i = 0; i < numSparse; i++) {
+        for (int i = 0; i < num_sparse; i++) {
             Embedding *emb = embedding[ndev][i];
             NCCL_CALL( ncclAllGather(emb->in, emb->gatheredIn, emb->batch_size, ncclInt32, comms[ndev], streams[ndev]) );
             NCCL_CALL( ncclAllGather(emb->delta, emb->gatheredDelta, emb->batch_size * emb->vector_size, ncclFloat32, comms[ndev], streams[ndev]) );
@@ -199,7 +199,7 @@ void batch_train (vector<Data>& data, int ndev) {
     for (int i = 0; i < botFCLayers.size() - 1; i++) botFC[ndev][i]->update();
 
     /* update embedding(bag) table */
-    for (int i = 0; i < numSparse; i++) {
+    for (int i = 0; i < num_sparse; i++) {
         if ( USEBAG ) embeddingbag[ndev][i]->update();
         else embedding[ndev][i]->update();
     }
@@ -212,23 +212,23 @@ void init_network (int ndev) {
     host_output_grad[ndev] = (float*) malloc( batch_size / NDEV / NNODE * sizeof(float) );
     dense_input[ndev] = (float*) malloc( batch_size / NDEV / NNODE * 13 * sizeof(float) );
     answer[ndev] = (float*) malloc( batch_size / NDEV / NNODE * sizeof(float) );
-    sparse_input[ndev] = (int**) malloc( numSparse * sizeof(int*) );
-    sparse_input_bag[ndev] = (int**) malloc( numSparse * sizeof(int*) );
+    sparse_input[ndev] = (int**) malloc( num_sparse * sizeof(int*) );
+    sparse_input_bag[ndev] = (int**) malloc( num_sparse * sizeof(int*) );
 
     dense_in[ndev] = new Tensor(batch_size / NDEV / NNODE, botFCLayers[0], 1, 1, ndev);
     dense_in_grad[ndev] = new Tensor(batch_size / NDEV / NNODE, botFCLayers[0], 1, 1, ndev);
-    sparse_in[ndev] = (IntegerTensor**) malloc( numSparse * sizeof(IntegerTensor*) );
-    sparse_in_bag[ndev] = (IntegerTensor**) malloc( numSparse * sizeof(IntegerTensor*) );
+    sparse_in[ndev] = (IntegerTensor**) malloc( num_sparse * sizeof(IntegerTensor*) );
+    sparse_in_bag[ndev] = (IntegerTensor**) malloc( num_sparse * sizeof(IntegerTensor*) );
 
-    sparse_out[ndev] = (Tensor**) malloc( numSparse * sizeof(Tensor*) );
-    sparse_out_grad[ndev] = (Tensor**) malloc( numSparse * sizeof(Tensor*) );
+    sparse_out[ndev] = (Tensor**) malloc( num_sparse * sizeof(Tensor*) );
+    sparse_out_grad[ndev] = (Tensor**) malloc( num_sparse * sizeof(Tensor*) );
 
     top_in[ndev] = new Tensor(batch_size / NDEV / NNODE, topFCLayers[0], 1, 1, ndev);
     top_in_grad[ndev] = new Tensor(batch_size / NDEV / NNODE, topFCLayers[0], 1, 1, ndev);
 
-    if ( USEBAG ) embeddingbag[ndev] = (EmbeddingBag**) malloc( numSparse * sizeof(EmbeddingBag*) );
-    else embedding[ndev] = (Embedding**) malloc( numSparse * sizeof(Embedding*) );
-    interaction[ndev] = new InteractionLayer(vector_size, numSparse, topFCLayers[0], batch_size / NDEV / NNODE, ndev);
+    if ( USEBAG ) embeddingbag[ndev] = (EmbeddingBag**) malloc( num_sparse * sizeof(EmbeddingBag*) );
+    else embedding[ndev] = (Embedding**) malloc( num_sparse * sizeof(Embedding*) );
+    interaction[ndev] = new InteractionLayer(vector_size, num_sparse, topFCLayers[0], batch_size / NDEV / NNODE, ndev);
 
     sigmoid[ndev] = new ActivationLayer(ndev, "sigmoid");
     reLU[ndev] = new ActivationLayer(ndev, "relu");
@@ -248,27 +248,34 @@ void init_network (int ndev) {
         topFC_a_grad[ndev][i] = new Tensor(batch_size / NDEV / NNODE, topFCLayers[i+1], 1, 1, ndev);
     }
 
-    for (int i = 0; i < numSparse; i++) {
+    for (int i = 0; i < num_sparse; i++) {
         sparse_input[ndev][i] = (int*) malloc( batch_size / NDEV / NNODE * sizeof(int) );
         sparse_input_bag[ndev][i] = (int*) malloc( batch_size * bag_size / NDEV / NNODE  * sizeof(int) );
         sparse_in[ndev][i] = new IntegerTensor(batch_size / NDEV / NNODE, 1, 1, 1, ndev);
         sparse_in_bag[ndev][i] = new IntegerTensor(batch_size * bag_size / NDEV / NNODE, 1, 1, 1, ndev);
         sparse_out[ndev][i] = new Tensor(batch_size / NDEV / NNODE, vector_size, 1, 1, ndev);
         sparse_out_grad[ndev][i] = new Tensor(batch_size / NDEV / NNODE, vector_size, 1, 1, ndev);
-        if ( USEBAG ) embeddingbag[ndev][i] = new EmbeddingBag(batch_size / NDEV / NNODE, numFeatures[i], bag_size, vector_size, ndev, ndev == hostdev && mpi_world_rank == hostnode);
-        else embedding[ndev][i] = new Embedding(batch_size / NDEV / NNODE, numFeatures[i], vector_size, ndev, ndev == hostdev && mpi_world_rank == hostnode);
+        if ( USEBAG ) embeddingbag[ndev][i] = new EmbeddingBag(batch_size / NDEV / NNODE, num_features[i], bag_size, vector_size, ndev, ndev == hostdev && mpi_world_rank == hostnode);
+        else embedding[ndev][i] = new Embedding(batch_size / NDEV / NNODE, num_features[i], vector_size, ndev, ndev == hostdev && mpi_world_rank == hostnode);
     }
 }
 
 int main (int argc, char **argv) {
     srand(time(NULL));
 
-    if ( argc < 3 ) {
-        printf("Usage: ./dlrm #node #gpu\n");
-        exit(0);
+    if ( argc < 6 ) {
+        fprintf(stderr, "Usage: ./dlrm <#node> <#gpu> <batch size> <epochs> <learning rate>\n");
+        return 0;
     }
     NNODE = atoi(argv[1]);
     NDEV = atoi(argv[2]);
+    batch_size = atoi(argv[3]);
+    epochs = atoi(argv[4]);
+    lr = -atof(argv[5]) / (1.0 * batch_size);
+
+    train_batches = 300000 * 128 / batch_size;
+    test_batches = 50000 * 128 / batch_size; 
+
     cout << "Using " << NDEV << " GPU with hostdev=" << hostdev << endl;
 
 
@@ -282,10 +289,10 @@ int main (int argc, char **argv) {
     if( is_host() ) cout << "CUDA & NCCL initialization done" << endl;
 
     /* Load and prepare data */
-    numFeatures = (int*) malloc( numSparse * sizeof(int) );
-    if ( mpi_world_rank == hostnode ) data_load(trainBatches * batch_size, testBatches * batch_size, train_data, test_data, numFeatures);
+    num_features = (int*) malloc( num_sparse * sizeof(int) );
+    if ( mpi_world_rank == hostnode ) data_load(train_batches * batch_size, test_batches * batch_size, train_data, test_data, num_features);
 
-    MPI_Bcast(numFeatures, numSparse, MPI_FLOAT, hostnode, MPI_COMM_WORLD);
+    MPI_Bcast(num_features, num_sparse, MPI_FLOAT, hostnode, MPI_COMM_WORLD);
 
     /* Initialize Network */
     #pragma omp parallel
@@ -313,7 +320,7 @@ int main (int argc, char **argv) {
             NCCL_CALL( ncclBroadcast(fc->d_weight, fc->d_weight, fc->inputSize * fc->outputSize, ncclFloat32, hostdev, comms[ndev], streams[ndev]) );
             NCCL_CALL( ncclBroadcast(fc->bias->d_mem, fc->bias->d_mem, fc->outputSize, ncclFloat32, hostdev, comms[ndev], streams[ndev]) );
         }
-        for (int i = 0; i < numSparse; i++) {
+        for (int i = 0; i < num_sparse; i++) {
             if ( USEBAG ) {
                 EmbeddingBag *emb = embeddingbag[ndev][i];
                 NCCL_CALL( ncclBroadcast(emb->table, emb->table, emb->rows * emb->vector_size, ncclFloat32, hostdev, comms[ndev], streams[ndev]) );    
@@ -345,8 +352,8 @@ int main (int argc, char **argv) {
         /* 
          * Testing
          */
-        for (int batch = 0; batch < testBatches; batch++) {
-            if( is_host() ) cout << "\rTesting batch #" << batch << "/" << testBatches << std::flush;
+        for (int batch = 0; batch < test_batches; batch++) {
+            if( is_host() ) cout << "\rTesting batch #" << batch << "/" << test_batches << std::flush;
             if( is_host() ) startTimer("test_iteration");
 
             /* Scatter data */
@@ -379,7 +386,7 @@ int main (int argc, char **argv) {
             /* Collect loss across devices */
             for (int ndev = 0; ndev < NDEV; ndev++) {
                 accuracy += res[ndev].first;
-                loss += res[ndev].second / testBatches / NDEV / NNODE;
+                loss += res[ndev].second / test_batches / NDEV / NNODE;
             }
 
             /* Collect loss across nodes */
@@ -392,8 +399,8 @@ int main (int argc, char **argv) {
 
         if( is_host() ) {
             cout << "\r[Epoch " << epoch << "/" << epochs << "] ";
-            cout << "accuracy: " << (float) accuracy_sum / ( testBatches * batch_size ) * 100.0 << "%, ";
-            cout << "loss: " << loss_sum << ", " << iter_time / testBatches  * 1000.0 << "ms/test itearation\n";
+            cout << "accuracy: " << (float) accuracy_sum / ( test_batches * batch_size ) * 100.0 << "%, ";
+            cout << "loss: " << loss_sum << ", " << iter_time / test_batches  * 1000.0 << "ms/test itearation\n";
         }
 
         if ( inference_only ) continue;
@@ -403,8 +410,8 @@ int main (int argc, char **argv) {
          * Training
          */
         iter_time = 0.0;
-        for (int batch = 0; batch < trainBatches; batch++) {
-            if ( is_host() ) cout << "\rTraining batch #" << batch << "/" << trainBatches << std::flush;
+        for (int batch = 0; batch < train_batches; batch++) {
+            if ( is_host() ) cout << "\rTraining batch #" << batch << "/" << train_batches << std::flush;
             
             /* Scatter data */
             vector<Data> batch_data;
@@ -437,7 +444,7 @@ int main (int argc, char **argv) {
         }
         cudaDeviceSynchronize();
 
-        if ( is_host() ) cout << "\n" << iter_time / trainBatches * 1000.0 << "ms/train itearation\n";
+        if ( is_host() ) cout << "\n" << iter_time / train_batches * 1000.0 << "ms/train itearation\n";
     }
 
     if ( is_host() ) cout << "Total elpased time: " << (float) clock() / CLOCKS_PER_SEC << " sec\n";

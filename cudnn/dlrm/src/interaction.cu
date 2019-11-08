@@ -71,26 +71,26 @@ __global__ void interaction_backward_kernel (float *d, float *dgrad, float **e, 
 }
 
 
-InteractionLayer::InteractionLayer (int vector_size_, int numSparse_, int outputSize_, int batch_size_, int ndev_) :
-                vector_size(vector_size_), numSparse(numSparse_), outputSize(outputSize_), batch_size(batch_size_), ndev(ndev_)
+InteractionLayer::InteractionLayer (int vector_size_, int num_sparse_, int outputSize_, int batch_size_, int ndev_) :
+                vector_size(vector_size_), num_sparse(num_sparse_), outputSize(outputSize_), batch_size(batch_size_), ndev(ndev_)
 {
-    h_sparse = (float**) malloc( numSparse * sizeof(float*) );
-    h_sparse_grad = (float**) malloc( numSparse * sizeof(float*) );
-    CUDA_CALL( cudaMalloc(&d_sparse, numSparse * sizeof(float*) ) );
-    CUDA_CALL( cudaMalloc(&d_sparse_grad, numSparse * sizeof(float*) ) );
+    h_sparse = (float**) malloc( num_sparse * sizeof(float*) );
+    h_sparse_grad = (float**) malloc( num_sparse * sizeof(float*) );
+    CUDA_CALL( cudaMalloc(&d_sparse, num_sparse * sizeof(float*) ) );
+    CUDA_CALL( cudaMalloc(&d_sparse_grad, num_sparse * sizeof(float*) ) );
 }
 
 void InteractionLayer::forward (Tensor *t_dense, Tensor *t_sparse[], Tensor *t_out) {
 
     CUDA_CALL( cudaSetDevice(ndev) );
 
-    for (int i = 0; i < numSparse; i++) h_sparse[i] = t_sparse[i]->d_mem;
+    for (int i = 0; i < num_sparse; i++) h_sparse[i] = t_sparse[i]->d_mem;
 
-    CUDA_CALL( cudaMemcpy(d_sparse, h_sparse, numSparse * sizeof(float*), cudaMemcpyHostToDevice) );
+    CUDA_CALL( cudaMemcpy(d_sparse, h_sparse, num_sparse * sizeof(float*), cudaMemcpyHostToDevice) );
 
     dim3 blocks2((batch_size+15) / 16, (outputSize + 15) / 16 );
     dim3 threadPerBlock2(16, 16);
-    interaction_forward_kernel<<<blocks2, threadPerBlock2>>>(t_dense->d_mem, d_sparse, t_out->d_mem, numSparse, batch_size, vector_size, outputSize);
+    interaction_forward_kernel<<<blocks2, threadPerBlock2>>>(t_dense->d_mem, d_sparse, t_out->d_mem, num_sparse, batch_size, vector_size, outputSize);
 }
 
 void InteractionLayer::backward (Tensor *t_dense, Tensor *t_dense_grad, 
@@ -100,16 +100,16 @@ void InteractionLayer::backward (Tensor *t_dense, Tensor *t_dense_grad,
     CUDA_CALL( cudaSetDevice(ndev) );
 
     // 1. concat sparse
-    for (int i = 0; i < numSparse; i++) {
+    for (int i = 0; i < num_sparse; i++) {
         h_sparse[i] = t_sparse[i]->d_mem;
         h_sparse_grad[i] = t_sparse_grad[i]->d_mem;
     }
-    CUDA_CALL( cudaMemcpy(d_sparse, h_sparse, numSparse * sizeof(float*), cudaMemcpyHostToDevice) );
-    CUDA_CALL( cudaMemcpy(d_sparse_grad, h_sparse_grad, numSparse * sizeof(float*), cudaMemcpyHostToDevice) );
+    CUDA_CALL( cudaMemcpy(d_sparse, h_sparse, num_sparse * sizeof(float*), cudaMemcpyHostToDevice) );
+    CUDA_CALL( cudaMemcpy(d_sparse_grad, h_sparse_grad, num_sparse * sizeof(float*), cudaMemcpyHostToDevice) );
 
     // 2. init grads to zero
     CUDA_CALL( cudaMemset(t_dense_grad->d_mem, 0, batch_size * vector_size * sizeof(float)) );
-    for (int i = 0; i < numSparse; i++) {
+    for (int i = 0; i < num_sparse; i++) {
         CUDA_CALL( cudaMemset(t_sparse_grad[i]->d_mem, 0, batch_size * vector_size * sizeof(float)) );
     }
 
@@ -118,5 +118,5 @@ void InteractionLayer::backward (Tensor *t_dense, Tensor *t_dense_grad,
     dim3 threadPerBlock(16, 16);
     interaction_backward_kernel<<<blocks, threadPerBlock>>>(
                                         t_dense->d_mem, t_dense_grad->d_mem, d_sparse, d_sparse_grad, 
-                                        t_out_grad->d_mem, numSparse, batch_size, vector_size, outputSize);
+                                        t_out_grad->d_mem, num_sparse, batch_size, vector_size, outputSize);
 }

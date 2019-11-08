@@ -17,10 +17,10 @@ extern std::vector<int> botFCLayers;
 extern std::vector<int> topFCLayers ;
 
 extern int batch_size, epochs;
-extern int numSparse, numDense;
+extern int num_sparse, num_dense;
 extern int vector_size, bag_size;
 
-extern int trainBatches, testBatches;
+extern int train_batches, test_batches;
 
 extern float one, zero, minusone;
 extern float lr; // this should be modified at start of the main
@@ -35,7 +35,7 @@ extern int hostdev;
 extern int hostnode;
 
 #define DEBUG 1
-#define USEBAG 1
+extern int USEBAG;
 
 /***************************************************************/
 /*                          CUDA                               */

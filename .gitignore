@@ -1,2 +1,3 @@
-# To large data files
+# Ignore large data files
 /cudnn/dlrm/data/*
+/pytorch/dlrm/data/*

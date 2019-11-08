@@ -10,14 +10,14 @@ __global__ void interaction_backward_kernel (float *d, float *dgrad, float **e, 
 
 class InteractionLayer {
 public:
-    int batch_size, vector_size, numSparse;
+    int batch_size, vector_size, num_sparse;
     int outputSize;
     int ndev;
 
     float **d_sparse, **d_sparse_grad;
     float **h_sparse, **h_sparse_grad;
 
-    InteractionLayer (int vector_size_, int numSparse_, int outputSize_, int batch_size_, int ndev_);
+    InteractionLayer (int vector_size_, int num_sparse_, int outputSize_, int batch_size_, int ndev_);
 
     void forward (Tensor *t_dense, Tensor *t_sparse[], Tensor *t_out);
 

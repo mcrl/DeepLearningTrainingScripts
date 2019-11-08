@@ -8,30 +8,27 @@ std::vector<int> botFCLayers = {13, 512, 256, 64, 16};
 std::vector<int> topFCLayers = {367, 512, 256, 1};
 
 int batch_size = 131072, epochs = 500;
-int numSparse = 26, numDense = 13;
+int num_sparse = 26, num_dense = 13;
 int vector_size = 16, bag_size = 4;
 
-// int trainBatches = 1, testBatches = 1;   // profile
-// int trainBatches = 100, testBatches = 100;   // test
-// int trainBatches = 10000, testBatches = 5000;   // small training
-// int trainBatches = 50000, testBatches = 10000; // medium training
-// int trainBatches = 300000, testBatches = 50000; // full training
-int trainBatches = 300000 * 128 / batch_size, testBatches = 50000 * 128 / batch_size; // full training
+// int train_batches = 1, test_batches = 1;   // profile
+// int train_batches = 100, test_batches = 100;   // test
+// int train_batches = 10000, test_batches = 5000;   // small training
+// int train_batches = 50000, test_batches = 10000; // medium training
+// int train_batches = 300000, test_batches = 50000; // full training
+int train_batches = 300000 * 128 / batch_size, test_batches = 50000 * 128 / batch_size; // full training
 
 float one = 1.0, zero = 0.0, minusone = -1.0;
 float lr = -1.0 / batch_size; 
 // bool inference_only = true;
 bool inference_only = false;
 
-#define MAXDEV 4
-#define MAXNODE 8
 int NDEV = 1;
 int NNODE = 1;
 int hostdev = 0;
 int hostnode = 0;
+int USEBAG = 1;
 
-#define DEBUG 1
-#define USEBAG 1
 
 /***************************************************************/
 /*                          CUDA                               */

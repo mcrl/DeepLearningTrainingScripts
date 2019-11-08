@@ -46,6 +46,6 @@ public:
 inline bool file_exists (const char *fname);
 
 void data_preprocess ();
-void data_load (int numTrain, int numTest, vector<Data>& train_data, vector<Data>& test_data, int *numFeatures);
+void data_load (int numTrain, int numTest, vector<Data>& train_data, vector<Data>& test_data, int *num_features);
 
 #endif // _DATA_H_

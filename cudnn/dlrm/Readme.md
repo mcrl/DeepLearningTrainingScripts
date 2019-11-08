@@ -7,7 +7,7 @@ Execute the program with following command.
 
 ```
 make
-mpirun --host c0,c1,c2,c3 -x CUDA_VISIBLE_DEVICES=0,1,2,3 ./dlrm <# of nodes> <# of GPUs per node>
+mpirun --host c0,c1,c2,c3 -x CUDA_VISIBLE_DEVICES=0,1,2,3 ./dlrm <# nodes> <# GPUs per node> <batch size> <epochs> <learning rate>
 ```
 
 Data preprocessing will take about ~1 hour.
@@ -58,7 +58,7 @@ input:
 [ dense features ]     [sparse indices] , ..., [sparse indices]
 ```
 
-In this model, there are 13 dense features, and 26 sparse indices. It means first input size of the bot_FC is 13, and number of embedding tables are 26.
+In this model, there are 13 dense features, and 26 sparse indices. Hence, first input size of the bottom FC is 13, and number of embedding tables are 26.
 
 # Files
 
@@ -101,11 +101,6 @@ In this model, there are 13 dense features, and 26 sparse indices. It means firs
 **```include/utils.h```, ```src/utils.cpp```**
 
 - Some utility functions.
-
-# TODOs
-
-- Remove ```<bits/stdc++.h>```.
-- Remove ```using namespace std;```.
 
 # References
 

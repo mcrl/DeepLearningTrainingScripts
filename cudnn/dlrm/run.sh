@@ -47,7 +47,7 @@ run_test() {
 #     log/${net}_${num_nodes}_${num_gpus}
 
     mpirun --host ${hosts} -x CUDA_VISIBLE_DEVICES=0,1,2,3\
-    ./${net} ${num_nodes} ${num_gpus}
+    ./${net} ${num_nodes} ${num_gpus} 8192 10 0.1
     > log/${net}_${num_nodes}_${num_gpus}
 }
 

@@ -155,7 +155,7 @@ void data_preprocess () {
 /////////////////////////////////////////////////////////////////////
 //                        Load preprocessed data                   //
 /////////////////////////////////////////////////////////////////////
-void data_load (int numTrain, int numTest, vector<Data>& train_data, vector<Data>& test_data, int *numFeatures) {
+void data_load (int numTrain, int numTest, vector<Data>& train_data, vector<Data>& test_data, int *num_features) {
     if ( !file_exists("./data/processed.txt") ) {
         cout << "processed file not found\n" << std::flush; 
         data_preprocess();
@@ -174,7 +174,7 @@ void data_load (int numTrain, int numTest, vector<Data>& train_data, vector<Data
         cnt++;
         if( cnt >= 15 ) featureList[cnt-15] = split(s, ' ');
     }
-    for (int i = 0; i < 26; i++) numFeatures[i] = featureList[i].size();
+    for (int i = 0; i < 26; i++) num_features[i] = featureList[i].size();
 
     // TODO: shuffle data
     cnt = 0;
