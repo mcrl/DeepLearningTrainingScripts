@@ -14,9 +14,10 @@
 #include "utils.h"
 #include "cache_allocator.h"
 
+static struct options options;
+
 int main(int argc, char *argv[])
 {
-	/*
 	snudnn_init(argc, argv);
 	if (rank == 0) 
 		printf("Using %d GPUs\n", nrank);
@@ -26,14 +27,14 @@ int main(int argc, char *argv[])
 			"data/wmt17_en_de/valid.en-de.de",
 			"data/wmt17_en_de/dict.en.txt",
 			"data/wmt17_en_de/dict.de.txt");
-	parse_opts(argc, argv, dataset);
+	parse_opts(&options, argc, argv, dataset);
 
 	size_t free, total;
 	chkCUDA(cudaMemGetInfo(&free, &total));
 	cacher_init((size_t)((double)free * 0.6));
 
 
-	model_t *model = model_create(options);
+	model_t *model = model_create(&options);
 	loss_t *loss = loss_create(model);
 	int max_epoch = options.train.max_epoch;
 	int nbatch = dataset_nbatch(dataset);
@@ -65,8 +66,6 @@ int main(int argc, char *argv[])
 			dataset_drop_batch(dataset, i);
 		}
 	}
-	return 0;
-	*/
 	return 0;
 }
 
