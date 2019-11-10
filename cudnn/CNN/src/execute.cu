@@ -535,6 +535,8 @@ int execute_get_conv_bwd_data_algo(
     (cudnnConvolutionBwdDataAlgoPerf_t *)
     malloc(sizeof(cudnnConvolutionBwdDataAlgoPerf_t) * count_required);
 
+  chkCUDA(cudaSetDevice(0));
+
   int count_provided;
   chkCUDNN(cudnnFindConvolutionBackwardDataAlgorithm(
         cudnn_handle[0],
@@ -555,8 +557,8 @@ int execute_get_conv_bwd_data_algo(
       }
     }
   }
-
-  printf("%s(): %s\n", __func__, conv_bwd_data_algo_msg(*algo));
+  free(perf_list);
+  printf("%s(): %s(%d/%d)\n", __func__, conv_bwd_data_algo_msg(*algo), *algo, count_provided);
 #endif
 
   return 0;
@@ -568,6 +570,8 @@ int execute_get_conv_bwd_data_ws_size(
     gpu_mem w, gpu_mem dy, gpu_mem dx,
     size_t *ws_size)
 {
+  chkCUDA(cudaSetDevice(0));
+
   chkCUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
         cudnn_handle[0],
         w->filter_desc,
@@ -616,6 +620,8 @@ int execute_get_conv_bwd_filter_algo(
     (cudnnConvolutionBwdFilterAlgoPerf_t *)
     malloc(sizeof(cudnnConvolutionBwdFilterAlgoPerf_t) * count_required);
 
+  chkCUDA(cudaSetDevice(0));
+
   int count_provided;
   chkCUDNN(cudnnFindConvolutionBackwardFilterAlgorithm(
         cudnn_handle[0],
@@ -636,8 +642,8 @@ int execute_get_conv_bwd_filter_algo(
       }
     }
   }
-
-  printf("%s(): %s\n", __func__, conv_bwd_filter_algo_msg(*algo));
+  free(perf_list);
+  printf("%s(): %s(%d/%d)\n", __func__, conv_bwd_filter_algo_msg(*algo), *algo, count_provided);
 #endif
 
   return 0;
@@ -649,6 +655,8 @@ int execute_get_conv_bwd_filter_ws_size(
     gpu_mem x, gpu_mem dy, gpu_mem dw,
     size_t *ws_size)
 {
+  chkCUDA(cudaSetDevice(0));
+
   chkCUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
         cudnn_handle[0],
         x->tensor_desc[0],
@@ -697,6 +705,8 @@ int execute_get_conv_fwd_algo(
     (cudnnConvolutionFwdAlgoPerf_t *)
     malloc(sizeof(cudnnConvolutionFwdAlgoPerf_t) * count_required);
 
+  chkCUDA(cudaSetDevice(0));
+
   int count_provided;
   chkCUDNN(cudnnFindConvolutionForwardAlgorithm(
         cudnn_handle[0],
@@ -717,8 +727,8 @@ int execute_get_conv_fwd_algo(
       }
     }
   }
-
-  printf("%s(): %s\n", __func__, conv_fwd_algo_msg(*algo));
+  free(perf_list);
+  printf("%s(): %s(%d/%d)\n", __func__, conv_fwd_algo_msg(*algo), *algo, count_provided);
 #endif
 
   return 0;
@@ -730,6 +740,8 @@ int execute_get_conv_fwd_ws_size(
     gpu_mem x, gpu_mem w, gpu_mem y,
     size_t *ws_size)
 {
+  chkCUDA(cudaSetDevice(0));
+
   chkCUDNN(cudnnGetConvolutionForwardWorkspaceSize(
         cudnn_handle[0],
         x->tensor_desc[0],

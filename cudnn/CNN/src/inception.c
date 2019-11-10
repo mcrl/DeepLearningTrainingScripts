@@ -1429,7 +1429,9 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
       }
 #endif
 
+#ifdef USE_TRAINING
       inception_backward();
+#endif
 
       if (is_first) {
         synch_device();
@@ -1469,12 +1471,15 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
 
   inception_get_param(param_out);
 
+#ifdef USE_TRAINING
   if (node_id == 0) {
     if (exists(params.result)) {
+#ifdef USE_VERIFICATION
       FILE *f = fopen(params.result, "rb");
       assert(sz  == fread(param_result, 1, sz, f));
       verify(param_out, param_result, sz / (sizeof(float))); 
       fclose(f);
+#endif
     }
     else {
       FILE *f = fopen(params.result, "wb");
@@ -1482,6 +1487,7 @@ void cnn_train(int num_train_image, float *train_data, int *train_label)
       fclose(f);
     }
   }
+#endif
 
   __finalize_object_manager();
   __finalize_stream_executer();

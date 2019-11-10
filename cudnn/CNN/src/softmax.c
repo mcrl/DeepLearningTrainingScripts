@@ -138,10 +138,6 @@ float get_loss(softmax_layer *l, int *label_in)
     int ans = label_in[i];
     float loss = log(cur[ans]);
     sum -= loss;
-
-    if (node_id == 0) {
-      printf("%d, %f, %f\n", ans, cur[ans], loss);
-    }
   }
 
   free(recvcounts);

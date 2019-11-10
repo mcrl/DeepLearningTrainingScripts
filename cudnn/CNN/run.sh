@@ -2,11 +2,12 @@
 
 ####################################################
 
-batch_size=16
+batch_size=1
 iteration=10
+epoch=1
 
 host_list=("c0" "c1" "c2" "c3" "c4" "c5" "c6" "c8")
-dev_list=("3" "2" "1" "0")
+dev_list=("0" "1" "2" "3")
 
 ####################################################
 
@@ -42,8 +43,8 @@ run_test() {
   mpirun \
     --host ${hosts} -x CUDA_VISIBLE_DEVICES=${devs} \
     ./${net} ${total_batch_size} ${iteration} ${data_path} ${label_path} \
-    model/${net}_${total_batch_size}_${iteration} > \
-    log/${net}_${num_nodes}_${num_gpus}
+    model/${net}_${total_batch_size}_$((iteration * epoch)) \
+    > log/${net}_${num_nodes}_${num_gpus}
 }
 
 ####################################################
@@ -53,13 +54,8 @@ mkdir -p obj
 mkdir -p log
 
 for net in vgg resnet densenet inception ; do
-data_path=/home/data/imagenet_16000_${net}.data
-label_path=/home/data/imagenet_16000_${net}.label
-make ${net}
-run_test 1 1 ${net}
-run_test 1 2 ${net}
-run_test 1 4 ${net}
-run_test 2 4 ${net}
-run_test 4 4 ${net}
-run_test 8 4 ${net}
+  data_path=data/imagenet_3200.data
+  label_path=data/imagenet_3200.label
+  make ${net}
+  run_test 1 1 ${net}
 done
