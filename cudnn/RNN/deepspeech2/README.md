@@ -15,9 +15,9 @@ Uncomment the line 221 ~ 246 and run the PyTorch reference with replaced train.p
 ## Hyperparameters
 The values of hyperparameters are defined in include/params.h.  
 Recommend that only
-+ the number of epochs(params.epochs)
-+ batch size for training(params.batch_size)
-+ batch size for inference(params.batch_size_eval)
++ the number of epochs (params.epochs)
++ batch size for training (params.batch_size)
++ batch size for inference (params.batch_size_eval)
 those be modified.
 
 ## How to run
