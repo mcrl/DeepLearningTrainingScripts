@@ -7,8 +7,10 @@
 
 2. How to run
 
+(note) 1 mpi process for each GPUs.
+
 a) training
-	./attention-rnn-training
+	mpirun -np [# processes] --host [host names] ./attention-rnn-training
 
 b) inference
-	./attention-rnn-inference
+	mpirun -np [# processes] --host [host names] ./attention-rnn-inference
