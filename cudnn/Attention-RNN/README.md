@@ -1,9 +1,10 @@
-0. Dataset
+0. How to compile
 
-	Preprocessed wmt14/wmt17 dataset is already in './data/' directory.
-
-1. How to compile
 	make [all]
+
+1. Dataset
+
+	Preprocessed wmt17 dataset is already in './data/' directory.
 
 2. How to run
 
