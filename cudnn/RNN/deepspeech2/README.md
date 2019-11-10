@@ -17,7 +17,7 @@ The values of hyperparameters are defined in include/params.h.
 Recommend that only
 + the number of epochs (params.epochs)
 + batch size for training (params.batch_size)
-+ batch size for inference (params.batch_size_eval)
++ batch size for inference (params.batch_size_eval)  
 those be modified.
 
 ## How to run
