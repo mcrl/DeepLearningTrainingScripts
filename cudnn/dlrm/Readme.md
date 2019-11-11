@@ -1,9 +1,9 @@
 # How to Run
 
-Prepare the training data [data file](https://labs.criteo.com/2014/09/kaggle-contest-dataset-now-available-academic-use/) as ```./data/data.txt```
+Prepare the training [data file](https://labs.criteo.com/2014/09/kaggle-contest-dataset-now-available-academic-use/) as ```./data/data.txt```
 (Note that the test data is not used, because we cannot check the answer. It is for the [kaggle competition](https://www.kaggle.com/c/criteo-display-ad-challenge/data))
 
-Execute the program with following command.
+Execute the program with following command. (Note that `host` and `CUDA_VISIBLE_DEVICES` arguments are just example and should be modified.)
 
 ```
 make
