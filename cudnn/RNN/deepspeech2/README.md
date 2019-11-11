@@ -17,19 +17,15 @@ make
 ```
 
 ## Datasets
-There is a preprocessed AN4 dataset in data folder.  
-To download and preprocess with another datasets (e.g. LibriSpeech),  
-use [**the PyTorch reference**](https://github.com/SeanNaren/deepspeech.pytorch) and replace the train.py with scripts/train.py.  
-Uncomment the lines 221 ~ 246 and run the PyTorch reference with replaced train.py.  
-  
-To prepare LibriSpeech dataset
+
+To download and preprocess datasets (e.g. LibriSpeech), use [**the PyTorch reference**] `pytorch/RNN/deepspeech2`.
+Uncomment the lines 221 ~ 246 and do the following:
 ```
 cd deepspeech.pytorch/data
 python librispeech.py
 cd ..
-python train.py --train-manifest data/librispeech_train_manifest.csv --val-manifest data/val_manifest.csv
+python train.py --train-manifest data/librispeech_train_manifest.csv --val-manifest data/librispeech_val_manifest.csv
 ```
-
 
 ## Hyperparameters
 The values of hyperparameters are defined in include/params.h.  
