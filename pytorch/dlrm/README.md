@@ -7,7 +7,6 @@ This readme is from the [original DLRM repository](https://github.com/facebookre
 How to run
 --------------------
 
-0)
 The code supports interface with the [Criteo Kaggle Display Advertising Challenge Dataset](https://labs.criteo.com/2014/09/kaggle-contest-dataset-now-available-academic-use/).
 
 Please do the following to prepare the dataset for use with DLRM code:
@@ -23,26 +22,7 @@ Then, run with the following script.
  ./dlrm_s_criteo_kaggle.sh
  ```
 
-
-1) A sample run of the code, with a tiny model is shown below
-```
-$ python dlrm_s_pytorch.py --mini-batch-size=2 --data-size=6
-time/loss/accuracy (if enabled):
-Finished training it 1/3 of epoch 0, -1.00 ms/it, loss 0.451893, accuracy 0.000%
-Finished training it 2/3 of epoch 0, -1.00 ms/it, loss 0.402002, accuracy 0.000%
-Finished training it 3/3 of epoch 0, -1.00 ms/it, loss 0.275460, accuracy 0.000%
-```
-2) A sample run of the code, with a tiny model in debug mode
-```
-$ python dlrm_s_pytorch.py --mini-batch-size=2 --data-size=6 --debug-mode
-model arch:
-mlp top arch 3 layers, with input to output dimensions:
-[8 4 2 1]
-# of interactions
-8
-...
-(more lines below)
-```
+This will run inference & training on multiple GPUs (if available). Please check lines 254-258 and 712-718 in `dlrm_s_pytorch.py`. This code uses custom parallel-forward method for multi-GPU.
 
 
 Model checkpoint saving/loading
