@@ -66,8 +66,8 @@ To download and setup the TEDLIUM_V2 dataset run below command in the root folde
 
 ```
 cd data; python ted.py # Optionally if you have downloaded the raw dataset file, pass --tar_path /path/to/TEDLIUM_release2.tar.gz
-
 ```
+
 #### Voxforge
 
 To download and setup the Voxforge dataset run the below command in the root folder of the repo:
@@ -153,8 +153,6 @@ python train.py --tensorboard --logdir log_dir/ # Make sure the Tensorboard inst
 For both visualisation tools, you can add your own name to the run by changing the `--id` parameter when training.
 
 ## Multi-GPU Training
-
-We support multi-GPU training via the distributed parallel wrapper (see [here](https://github.com/NVIDIA/sentiment-discovery/blob/master/analysis/scale.md) and [here](https://github.com/SeanNaren/deepspeech.pytorch/issues/211) to see why we don't use DataParallel).
 
 To use multi-GPU
 For example to use 4 nodes and 4 GPUs per node,
