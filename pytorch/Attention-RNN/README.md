@@ -24,8 +24,13 @@
 
 2. How to run
 
-a) training
-	./train_attention_rnn.sh [number of processes]
+	(note) change --master_addr, --master_port, --nnodes, --node_rank options appropriately
 
-b) inference
-	./inference_attention_rnn.sh [number of processes]
+	a) single node
+	CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/wmt17_en_de --momentum 0 --lr 1 --clip-norm 0.1 --max-tokens 1200  --criterion cross_entropy --lr-scheduler fixed --curriculum 1 --fix-batches-to-gpus --optimizer sgd --distributed-world-size 1 --arch lstm_luong_wmt_en_de --save-dir checkpoints/run4 --ddp-backend=no_c10d --validate-interval 100000 --no-save --max-epoch 1
+
+	b) multi-node (master)
+	NCCL_TREE_THRESHOLD=0 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=4 --node_rank=0 --master_addr="192.168.10.100" --master_port=22549 $(which fairseq-train) data-bin/wmt17_en_de --momentum 0 --lr 1 --clip-norm 0.1 --max-tokens 1200 --criterion cross_entropy --lr-scheduler fixed --curriculum 1 --fix-batches-to-gpus --optimizer sgd --arch lstm_luong_wmt_en_de --save-dir checkpoints/run4 --ddp-backend=no_c10d --validate-interval 100000 --no-save --max-epoch 1 --distributed-no-spawn
+
+	c) multi-node (slave)
+	NCCL_TREE_THRESHOLD=0 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=4 --node_rank=3 --master_addr="192.168.10.100" --master_port=22549 $(which fairseq-train) data-bin/wmt17_en_de --momentum 0 --lr 1 --clip-norm 0.1 --max-tokens 1200 --criterion cross_entropy --lr-scheduler fixed --curriculum 1 --fix-batches-to-gpus --optimizer sgd --arch lstm_luong_wmt_en_de --save-dir checkpoints/run4 --ddp-backend=no_c10d --validate-interval 100000 --no-save --max-epoch 1 --distributed-no-spawn
