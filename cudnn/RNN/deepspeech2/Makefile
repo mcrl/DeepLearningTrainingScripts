@@ -13,10 +13,8 @@ CC_INCLUDE := -I$(INCLUDE_PATH) -I$(WARP_CTC_INCLUDE_PATH)
 CC_LIBRARY := -lm
 
 CC_CUDA_INCLUDE := -I/usr/local/cuda/include -I/usr/local/cuda/cudnn-7.4.2/include
-CC_CUDA_LIBRARY := -L/usr/lib/x86_64-linux-gnu/ -L/usr/local/cuda/cudnn-7.4.2/lib64 -L/usr/local/cuda/lib64/ -lcudnn -lcudart -lcublas -lnccl
+CC_CUDA_LIBRARY := -L/usr/local/cuda/cudnn-7.4.2/lib64 -L/usr/local/cuda/lib64/ -lcudnn -lcudart -lcublas -lnccl
 WARP_CTC_LIBRARY := -L./warp-ctc/build -lwarpctc
-
-CUDA_INCLUDE_PATH := /usr/local/cuda/include
 
 SRCS := $(wildcard $(SRC_PATH)/*.c)
 CU_SRCS := $(wildcard $(SRC_PATH)/*.cu)
