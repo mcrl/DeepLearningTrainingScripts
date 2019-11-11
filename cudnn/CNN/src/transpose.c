@@ -12,9 +12,10 @@
 #include "memory.h"
 #include "execute.h"
 
-void init_elt_layer(
-    elt_layer *l, const char *name,
-    int batch_size, int channel, int height, int width, elt_type type)
+void init_transpose_layer(
+    transpose_layer *l, const char *name,
+    int batch_size, int channel, int height, int width,
+    int axisX, int axisY)
 {
   ////////////////////////////////////////////////////////////////
   // 1. Initialize Parameters
@@ -26,35 +27,26 @@ void init_elt_layer(
   l->height = height;
   l->width = width;
 
-  l->type = type;
+  l->axisX = axisX;
+  l->axisY = axisY;
 
-  l->input[0] = NULL;
-  l->input[1] = NULL;
+  l->input = NULL;
+  l->d_input = NULL;
 
   l->output = NULL;
   l->d_output = NULL;
 
-  clear_time_elt_layer(l);
+  clear_time_transpose_layer(l);
 
   ////////////////////////////////////////////////////////////////
-  // 2. Set OpTensor Descriptor
-  ////////////////////////////////////////////////////////////////
-  chkCUDNN(cudnnCreateOpTensorDescriptor(&l->op_desc));
-
-  // l->type == ADD_T
-  chkCUDNN(cudnnSetOpTensorDescriptor(
-        l->op_desc, CUDNN_OP_TENSOR_ADD,
-        CUDNN_DATA_FLOAT, CUDNN_NOT_PROPAGATE_NAN));
-
-  ////////////////////////////////////////////////////////////////
-  // 3. Create Tensors
+  // 2. Create Tensors
   ////////////////////////////////////////////////////////////////
   create_buffer_data(
-      &l->input[0], CUDNN_DATA_FLOAT, 4,
+      &l->input, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
-  create_buffer_data(
-      &l->input[1], CUDNN_DATA_FLOAT, 4,
+  create_buffer_data_gradient(
+      &l->d_input, CUDNN_DATA_FLOAT, 4,
       l->batch_size, l->channel, l->height, l->width);
 
   create_buffer_data(
@@ -66,24 +58,28 @@ void init_elt_layer(
       l->batch_size, l->channel, l->height, l->width);
 }
 
-void train_fwd_elt_layer(elt_layer *l)
+void train_fwd_transpose_layer(transpose_layer *l)
 {
   START_CNN_TIMER(fwd_t);
-  execute_elt(l->op_desc, l->input[0], l->input[1], l->output);
+  execute_transpose(l->input, l->output, l->axisX, l->axisY);
   STOP_CNN_TIMER(fwd_t);
 }
 
-void train_bwd_elt_layer(elt_layer *l)
+void train_bwd_transpose_layer(transpose_layer *l)
 {
+  START_CNN_TIMER(bwd_t);
+  execute_transpose(l->d_output, l->d_input, l->axisX, l->axisY);
+  STOP_CNN_TIMER(bwd_t);
 }
 
-void print_time_elt_layer(elt_layer *l)
+void print_time_transpose_layer(transpose_layer *l)
 {
   printf("%s, %.3f, %.3f, %.3f, %.3f\n",
-      l->name, l->fwd_t, 0.0f, 0.0f, 0.0f);
+      l->name, l->fwd_t, l->bwd_t, 0.0f, 0.0f);
 }
 
-void clear_time_elt_layer(elt_layer *l)
+void clear_time_transpose_layer(transpose_layer *l)
 {
   l->fwd_t = 0.0;
+  l->bwd_t = 0.0;
 }

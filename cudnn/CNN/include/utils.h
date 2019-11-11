@@ -4,36 +4,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <math.h>
+#include <time.h>
 
 #include <cuda.h>
 #include <cudnn.h>
 #include <cublas_v2.h>
-#include <time.h>
 
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define M_PI 3.14159265358979323846
 
-#define START_CNN_TIMER(name) \
-  static struct timespec st_##name;\
-  do {\
-    cudaDeviceSynchronize();\
-    clock_gettime(CLOCK_MONOTONIC, &st_##name);\
-  } while (0)
+#define MAX(a, b) ( ((a) < (b)) ? (b) : (a) )
+#define MIN(a, b) ( ((a) < (b)) ? (a) : (b) )
 
-#define STOP_CNN_TIMER(name) \
-  static struct timespec ed_##name;\
-  do {\
-    cudaDeviceSynchronize();\
-    clock_gettime(CLOCK_MONOTONIC, &ed_##name);\
-    l->name += diff_timespec_ms(st_##name, ed_##name);\
-  } while (0)
+#define N_ARGS(...) N_ARGS_(__VA_ARGS__, N_RSEQ_())
+#define N_ARGS_(...) N_ARG_(__VA_ARGS__)
+#define N_ARG_(_1, _2, _3, _4, _5, _6, _7, _8, N, ...) N
+#define N_RSEQ_() 8, 7, 6, 5, 4, 3, 2, 1, 0
+
+//#define USE_LOG
+#define LOG_FILE ( stderr )
+
+#ifdef USE_LOG
+#define LOG(msg) fprintf(LOG_FILE, "[%s:%d] %s() %s\n", __FILE__, __LINE__, __func__, #msg)
+#else
+#define LOG(msg)
+#endif // USE_LOG
 
 #define chkCUDA(exp) \
   do {\
     cudaError_t status = (exp);\
     if (status != cudaSuccess) {\
-      fprintf(stderr, "[%s] Error on line %d: %s\n",\
-          __FILE__, __LINE__, cudaGetErrorString(status));\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d) %s\n",\
+          __FILE__, __LINE__, (int)status, cudaGetErrorString(status));\
       exit(EXIT_FAILURE);\
     }\
   } while (0)
@@ -42,8 +44,8 @@
   do {\
     cudnnStatus_t status = (exp);\
     if (status != CUDNN_STATUS_SUCCESS) {\
-      fprintf(stderr, "[%s] Error on line %d: %s\n",\
-          __FILE__, __LINE__, cudnnGetErrorString(status));\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d) %s\n",\
+          __FILE__, __LINE__, (int)status, cudnnGetErrorString(status));\
       exit(EXIT_FAILURE);\
     }\
   } while (0)
@@ -52,57 +54,68 @@
   do {\
     cublasStatus_t status = (exp);\
     if (status != CUBLAS_STATUS_SUCCESS) {\
-      fprintf(stderr, "[%s] Error on line %d: %d\n",\
-          __FILE__, __LINE__, (int)status);\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d) %s\n",\
+          __FILE__, __LINE__, (int)status, cublasGetErrorString(status));\
       exit(EXIT_FAILURE);\
     }\
   } while (0)
+
+#define chkMPI(exp) \
+  do {\
+    int status = (exp);\
+    if (status != MPI_SUCCESS) {\
+      fprintf(stderr, "[%s] Error on line %d: (code=%d)\n",\
+          __FILE__, __LINE__, status);\
+      exit(EXIT_FAILURE);\
+    }\
+  } while (0)
+
+static inline int exists(const char *fname)
+{
+  FILE *file;
+  if ((file = fopen(fname, "r"))) {
+    fclose(file);
+    return 1;
+  }
+  return 0;
+}
+
+static inline void verify(float *res, float *ans, int cnt)
+{
+  const float EPS = 1e-6;
+  for (int i = 0; i < cnt; i++) {
+    float abs_diff = fabs(res[i]);
+    float rel_diff = fabs((res[i] - ans[i])/res[i]);
+
+    if (abs_diff >= EPS && rel_diff >= EPS) {
+      printf("%e %e relative_diff = %e\n", res[i], ans[i], rel_diff);
+    }
+
+    if (isnan(res[i]) || abs_diff >= EPS && rel_diff >= EPS) {
+      fprintf(stderr, "Verification failed at %d, res = %lf, ans = %lf (rel diff = %lf)\n",
+          i, res[i], ans[i], rel_diff);
+      return;
+    }
+  }
+  fprintf(stderr, "Verification success\n");
+}
 
 static inline float diff_timespec_ms(struct timespec st, struct timespec ed)
 {
   return (ed.tv_sec - st.tv_sec) * 1000 + (ed.tv_nsec - st.tv_nsec) / 1000000.0;
 }
 
-static inline void MALLOC_TENSOR_INT(
-    int **pptr, int batch_size, int num_channels, int height, int width)
+static inline void INITIALIZE_CONST(float *ptr, size_t len, float cst)
 {
-  size_t sz = sizeof(int) * batch_size * num_channels * height * width;
-
-  chkCUDA(cudaMalloc((void **)pptr, sz));
-  chkCUDA(cudaMemset(*pptr, 0, sz));
-}
-
-static inline void MALLOC_TENSOR_FLOAT(
-    float **pptr, int batch_size, int num_channels, int height, int width)
-{
-  size_t sz = sizeof(float) * batch_size * num_channels * height * width;
-
-  chkCUDA(cudaMalloc((void **)pptr, sz));
-  chkCUDA(cudaMemset(*pptr, 0, sz));
-}
-
-static inline int CALC_SIZE(int input, int filter, int pad, int stride)
-{
-  return (input + pad * 2 - filter) / stride + 1;
-}
-
-static inline void INITIALIZE_TENSOR_URAND(
-    float *ptr, float start, float end, size_t len)
-{
-  float *tmp = (float *)malloc(sizeof(float) * len);
-
   for (int i = 0; i < len; i++) {
-    tmp[i] = (end - start) * (float)rand() / RAND_MAX + start;
+    ptr[i] = cst;
   }
-
-  cudaMemcpy(ptr, tmp, sizeof(float) * len, cudaMemcpyHostToDevice);
-  free(tmp);
 }
 
 static inline void INITIALIZE_RAND(float *ptr, size_t len)
 {
   for (int i = 0; i < len; i++) {
-    ptr[i] = ((float)rand() / RAND_MAX - 0.5f);
+    ptr[i] = (float)rand() / RAND_MAX - 0.5f;
   }
 }
 
@@ -113,7 +126,7 @@ static inline void INITIALIZE_RAND_SCALE(float *ptr, size_t len, float scale)
   }
 }
 
-static float gauss(void)
+static float gauss()
 {
   float x = (float)rand() / RAND_MAX;
   float y = (float)rand() / RAND_MAX;
@@ -128,101 +141,21 @@ static inline void INITIALIZE_RAND_NORM_SCALE(float *ptr, size_t len, float scal
   }
 }
 
-static inline void INITIALIZE_CONST(float *ptr, size_t len, float cst)
+static const char *cublasGetErrorString(cublasStatus_t status)
 {
-  for (int i = 0; i < len; i++) {
-    ptr[i] = cst;
+  switch (status) {
+    case CUBLAS_STATUS_SUCCESS: return "CUBLAS_STATUS_SUCCESS";
+    case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
+    case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
+    case CUBLAS_STATUS_INVALID_VALUE: return "CUBLAS_STATUS_INVALID_VALUE";
+    case CUBLAS_STATUS_ARCH_MISMATCH: return "CUBLAS_STATUS_ARCH_MISMATCH";
+    case CUBLAS_STATUS_MAPPING_ERROR: return "CUBLAS_STATUS_MAPPING_ERROR";
+    case CUBLAS_STATUS_EXECUTION_FAILED: return "CUBLAS_STATUS_EXECUTION_FAILED";
+    case CUBLAS_STATUS_INTERNAL_ERROR: return "CUBLAS_STATUS_INTERNAL_ERROR";
+    case CUBLAS_STATUS_NOT_SUPPORTED: return "CUBLAS_STATUS_NOT_SUPPORTED";
+    case CUBLAS_STATUS_LICENSE_ERROR: return "CUBLAS_STATUS_LICENSE_ERROR";
+    default: return "";
   }
-}
-
-static inline void PRINT_TENSOR(float *ptr, size_t len, const char *msg, int nn)
-{
-  float *tmp = (float *)malloc(sizeof(float) * len);
-  cudaMemcpy(tmp, ptr, sizeof(float) * len, cudaMemcpyDeviceToHost);
-
-  fprintf(stderr, "%s\n", msg);
-  for (int i = 0; i < len; i++) {
-    fprintf(stderr, "%.8f ", tmp[i]);
-    if ((i + 1) % nn == 0) {
-      fprintf(stderr, "\n");
-    }
-  }
-  fprintf(stderr, "\n");
-
-  free(tmp);
-}
-
-static void PRINT_TENSOR_WITH_DESC(float *ptr, cudnnTensorDescriptor_t desc, const char *msg)
-{
-  cudnnDataType_t type;
-  int n, c, h, w, nt, nc, nh, nw;
-
-  chkCUDNN(cudnnGetTensor4dDescriptor(desc, &type, &n, &c, &h, &w, &nt, &nc, &nh, &nw));
-
-  fprintf(stderr, "print tensor4d (%d,%d,%d,%d)\n", n, c, h, w);
-  PRINT_TENSOR(ptr, n * c * h * w, msg, 5);
-}
-
-static void PRINT_FILTER_WITH_DESC(float *ptr, cudnnFilterDescriptor_t desc, const char *msg)
-{
-  cudnnDataType_t type;
-  cudnnTensorFormat_t format;
-  int k, c, r, s;
-
-  chkCUDNN(cudnnGetFilter4dDescriptor(desc, &type, &format, &k, &c, &r, &s));
-
-  fprintf(stderr, "print tensor4d (%d,%d,%d,%d)\n", k, c, r, s);
-  PRINT_TENSOR(ptr, k * c * r * s, msg, 5);
-}
-
-static void PRINT_TENSOR4D(float *ptr, int N, int C, int H, int W, const char *msg)
-{
-  fprintf(stderr, "print tensor4d (%d,%d,%d,%d)\n", N, C, H, W);
-  PRINT_TENSOR(ptr, N * C * H * W, msg, 5);
-}
-
-static void WRITE_TENSORND(float *d_ptr, int n, int shape[], const char *name)
-{
-  FILE *of = fopen(name, "wb");
-  size_t total = 1;
-  float *ptr;
-  int i;
-
-  assert(of);
-
-  fprintf(stderr, "writing %s (%d, %d, %d,)\n", name, shape[0], shape[1], shape[2]);
-  fwrite(shape, sizeof(int) * n, 1, of);
-
-  for (i = 0; i < n; i++) {
-    total *= shape[i];
-  }
-
-  ptr = (float *)malloc(sizeof(float) * total);
-  cudaMemcpy(ptr, d_ptr, sizeof(float) * total, cudaMemcpyDeviceToHost);
-  fwrite(ptr, sizeof(float) * total, 1, of);
-
-  free(ptr);
-  fclose(of);
-}
-
-static void PRINT_TENSOR_DESC(cudnnTensorDescriptor_t t)
-{
-  cudnnDataType_t type;
-  int n, c, h, w, nt, nc, nh, nw;
-
-  chkCUDNN(cudnnGetTensor4dDescriptor(t, &type, &n, &c, &h, &w, &nt, &nc, &nh, &nw));
-
-  printf("%d, (%d, %d, %d, %d), (%d, %d, %d, %d)\n", type, n, c, h, w, nt, nc, nh, nw);
-}
-
-static int TENSOR_SIZE(cudnnTensorDescriptor_t t)
-{
-  cudnnDataType_t type;
-  int n, c, h, w, nt, nc, nh, nw;
-
-  chkCUDNN(cudnnGetTensor4dDescriptor(t, &type, &n, &c, &h, &w, &nt, &nc, &nh, &nw));
-
-  return n * c * h * w;
 }
 
 #endif // _UTILS_H_
