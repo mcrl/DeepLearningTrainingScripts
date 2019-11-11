@@ -4,22 +4,6 @@ Implementation of DeepSpeech2 for PyTorch. Creates a network based on the [DeepS
 
 ## Installation
 
-### Docker
-
-There is no official Dockerhub image, however a Dockerfile is provided to build on your own systems.
-
-```bash
-sudo nvidia-docker build -t  deepspeech2.docker .
-sudo nvidia-docker run -ti -v `pwd`/data:/workspace/data -p 8888:8888 --net=host --ipc=host deepspeech2.docker # Opens a Jupyter notebook, mounting the /data drive in the container
-```
-
-Optionally you can use the command line by changing the entrypoint:
-
-```bash
-sudo nvidia-docker run -ti -v `pwd`/data:/workspace/data --entrypoint=/bin/bash --net=host --ipc=host deepspeech2.docker
-
-```
-
 ### From Source
 
 Several libraries are needed to be installed for training to work. I will assume that everything is being installed in
@@ -172,51 +156,22 @@ For both visualisation tools, you can add your own name to the run by changing t
 
 We support multi-GPU training via the distributed parallel wrapper (see [here](https://github.com/NVIDIA/sentiment-discovery/blob/master/analysis/scale.md) and [here](https://github.com/SeanNaren/deepspeech.pytorch/issues/211) to see why we don't use DataParallel).
 
-To use multi-GPU:
-
+To use multi-GPU
+For example to use 4 nodes and 4 GPUs per node,
+use below command first at node 0.
 ```
-python -m multiproc train.py --visdom --cuda # Add your parameters as normal, multiproc will scale to all GPUs automatically
+NCCL_TREE_THRESHOLD=0 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=4 --node_rank=0 --master_addr="192.168.10.100" --master_port=22549 -- train.py
+```
+Use each command at other nodes with a different rank.
+```
+NCCL_TREE_THRESHOLD=0 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=4 --node_rank=1 --master_addr="192.168.10.100" --master_port=22549 -- train.py
+...
+NCCL_TREE_THRESHOLD=0 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=4 --node_rank=4 --master_addr="192.168.10.100" --master_port=22549 -- train.py
 ```
 
 multiproc will open a log for all processes other than the main process.
 
 We suggest using the NCCL backend which defaults to TCP if Infiniband isn't available.
-
-## Mixed Precision
-
-If you are using NVIDIA volta cards or above to train your model, it's highly suggested to turn on mixed precision for speed/memory benefits. More information can be found [here](https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html). Also suggested is to turn on dyanmic loss scaling to handle small grad values:
-
-```
-python train.py --train-manifest data/train_manifest.csv --val-manifest data/val_manifest.csv --mixed-precision --dynamic-loss-scale
-```
-
-You can also specify specific GPU IDs rather than allowing the script to use all available GPUs:
-
-```
-python -m multiproc train.py --visdom --cuda --device-ids 0,1,2,3 # Add your parameters as normal, will only run on 4 GPUs
-```
-
-### Noise Augmentation/Injection
-
-There is support for two different types of noise; noise augmentation and noise injection.
-
-#### Noise Augmentation
-
-Applies small changes to the tempo and gain when loading audio to increase robustness. To use, use the `--augment` flag when training.
-
-#### Noise Injection
-
-Dynamically adds noise into the training data to increase robustness. To use, first fill a directory up with all the noise files you want to sample from.
-The dataloader will randomly pick samples from this directory.
-
-To enable noise injection, use the `--noise-dir /path/to/noise/dir/` to specify where your noise files are. There are a few noise parameters to tweak, such as
-`--noise_prob` to determine the probability that noise is added, and the `--noise-min`, `--noise-max` parameters to determine the minimum and maximum noise to add in training.
-
-Included is a script to inject noise into an audio file to hear what different noise levels/files would sound like. Useful for curating the noise dataset.
-
-```
-python noise_inject.py --input-path /path/to/input.wav --noise-path /path/to/noise.wav --output-path /path/to/input_injected.wav --noise-level 0.5 # higher levels means more noise
-```
 
 ### Checkpoints
 
