@@ -1,0 +1,1 @@
+python test_on_coco.py --dataset-root ./dataset-coco-2017-val/val2017/ --ann-file ./dataset-coco-2017-val/annotations/instances_val2017.json --imgs-to-evaluate 500 --weights-file ./ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb
