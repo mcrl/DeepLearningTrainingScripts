@@ -219,6 +219,10 @@ void cl_launch_kernel()
 	globalWorkSizeKernel3[1] = 1;
 
 	t_start = rtclock();
+#ifdef MEASURE
+measure_start();
+do {
+#endif
 	
 	int k;
 	for (k = 0; k < N; k++)
@@ -271,6 +275,10 @@ void cl_launch_kernel()
 	}
 	clFinish(clCommandQue);
 
+#ifdef MEASURE
+} while (measure_continue());
+measure_end();
+#endif
 	t_end = rtclock();
 	fprintf(stdout, "GPU Runtime: %0.6lfs\n", t_end - t_start);
 }
