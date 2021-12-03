@@ -239,6 +239,10 @@ void cl_launch_kernel()
 	globalWorkSize_Kernel3[1] = 1;
 
 	t_start = rtclock();
+#ifdef MEASURE
+measure_start();
+do {
+#endif
 	
 	// Set the arguments of the kernel
 	errcode =  clSetKernelArg(clKernel_mean, 0, sizeof(cl_mem), (void *)&mean_mem_obj);
@@ -281,6 +285,10 @@ void cl_launch_kernel()
 	if(errcode != CL_SUCCESS) printf("Error in launching kernel4\n");
 	clFinish(clCommandQue);
 
+#ifdef MEASURE
+} while (measure_continue());
+measure_end();
+#endif
 	t_end = rtclock();
 	fprintf(stdout, "GPU Runtime: %0.6lfs\n", t_end - t_start);
 }
