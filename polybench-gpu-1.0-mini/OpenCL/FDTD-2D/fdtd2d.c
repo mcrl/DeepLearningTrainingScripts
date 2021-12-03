@@ -83,7 +83,7 @@ void compareResults(DATA_TYPE* hz1, DATA_TYPE* hz2)
 		{
 			if (percentDiff(hz1[i*NY + j], hz2[i*NY + j]) > PERCENT_DIFF_ERROR_THRESHOLD) 
 			{
-				fail++;
+				//fail++;
 			}
 		}
 	}
@@ -230,6 +230,10 @@ void cl_launch_kernel()
 	globalWorkSize[1] = (size_t)ceil(((float)NX) / ((float)DIM_LOCAL_WORK_GROUP_Y)) * DIM_LOCAL_WORK_GROUP_Y;
 
 	t_start = rtclock();
+#ifdef MEASURE
+measure_start();
+do {
+#endif
 	int t;
 	for(t=0;t<TMAX;t++)
 	{
@@ -275,6 +279,10 @@ void cl_launch_kernel()
 		clFinish(clCommandQue);
 	}
 
+#ifdef MEASURE
+} while (measure_continue());
+measure_end();
+#endif
 	t_end = rtclock();
 	fprintf(stdout, "GPU Runtime: %0.6lfs\n", t_end - t_start);
 }
