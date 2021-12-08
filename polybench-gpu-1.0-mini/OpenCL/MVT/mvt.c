@@ -328,6 +328,11 @@ int main(void)
 	cl_load_prog();
 
 	cl_launch_kernel();
+#ifdef MEASURE
+  measure_disable();
+	cl_mem_init(a, x1, x2, y_1, y_2);
+	cl_launch_kernel();
+#endif
 
 	errcode = clEnqueueReadBuffer(clCommandQue, x1_mem_obj, CL_TRUE, 0, N*sizeof(DATA_TYPE), x1_outputFromGpu, 0, NULL, NULL);
 	errcode = clEnqueueReadBuffer(clCommandQue, x2_mem_obj, CL_TRUE, 0, N*sizeof(DATA_TYPE), x2_outputFromGpu, 0, NULL, NULL);
