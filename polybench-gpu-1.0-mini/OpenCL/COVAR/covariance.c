@@ -379,6 +379,11 @@ int main(void)
 	cl_load_prog();
 
 	cl_launch_kernel();
+#ifdef MEASURE
+  measure_disable();
+	cl_mem_init(data, symmat, mean);
+	cl_launch_kernel();
+#endif
 
 	errcode = clEnqueueReadBuffer(clCommandQue, symmat_mem_obj, CL_TRUE, 0, (M+1) * (N+1) * sizeof(DATA_TYPE), symmat_outputFromGpu, 0, NULL, NULL);
 	if(errcode != CL_SUCCESS) printf("Error in reading GPU mem\n");   
