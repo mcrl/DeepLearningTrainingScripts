@@ -286,6 +286,12 @@ int main(int argc, char *argv[])
 
 	cl_launch_kernel();
 
+#ifdef MEASURE
+  measure_disable();
+	cl_mem_init(A);
+	cl_launch_kernel();
+#endif
+
 	errcode = clEnqueueReadBuffer(clCommandQue, b_mem_obj, CL_TRUE, 0, NI*NJ*sizeof(DATA_TYPE), B_outputFromGpu, 0, NULL, NULL);
 	if(errcode != CL_SUCCESS) printf("Error in reading GPU mem\n");
 
