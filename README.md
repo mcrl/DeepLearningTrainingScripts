@@ -33,3 +33,7 @@
 ## Polybench
 
 Modified to measure performance and energy consumption of soff. Run `make` in each folder to compile and run.
+
+## Hioki3334
+
+A small python code snippet to control HIOKI 3334 AC/DC Power HiTESTER.
