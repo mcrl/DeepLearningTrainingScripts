@@ -29,3 +29,7 @@
 * Tensorflow 1.13.1
 * cuda-toolkit 10.0
 * cudnn 7.4.2
+
+## Polybench
+
+Modified to measure performance and energy consumption of soff. Run `make` in each folder to compile and run.
