@@ -87,7 +87,7 @@ void measure_start() {
   measure_get_wh_time(&swh, &st_low);
   st_high = measure_get_time();
   iter = 0;
-  printf("[%s:%d] measure_start time(high precision)=%f time(low precision)=%f energy=%f\n", __FILE__, __LINE__, st_high, st_low, swh);
+  //printf("[%s:%d] measure_start time(high precision)=%f time(low precision)=%f energy=%f\n", __FILE__, __LINE__, st_high, st_low, swh);
 }
 
 int measure_continue() {
@@ -102,7 +102,7 @@ void measure_end() {
   double et_low, ewh;
   measure_get_wh_time(&ewh, &et_low);
   double et_high = measure_get_time();
-  printf("[%s:%d] measure_end time(high precision)=%f time(low precision)=%f energy=%f iter=%d\n", __FILE__, __LINE__, et_high, et_low, ewh, iter);
+  //printf("[%s:%d] measure_end time(high precision)=%f time(low precision)=%f energy=%f iter=%d\n", __FILE__, __LINE__, et_high, et_low, ewh, iter);
 
   double tt = et_high - st_high;
   double atp = (ewh - swh) / (tt / 3600);
@@ -110,10 +110,10 @@ void measure_end() {
   double adp = atp - aip;
   double t = tt / iter;
   double wh = adp * (t / 3600);
-  printf("[%s:%d] Total Time(s) = %f\n", __FILE__, __LINE__, tt);
-  printf("[%s:%d] Average Total Power(W) = %f\n", __FILE__, __LINE__, atp);
-  printf("[%s:%d] Average Idle Power(W) = %f\n", __FILE__, __LINE__, aip);
-  printf("[%s:%d] Average Device Power(W) = %f\n", __FILE__, __LINE__, adp);
+  //printf("[%s:%d] Total Time(s) = %f\n", __FILE__, __LINE__, tt);
+  //printf("[%s:%d] Average Total Power(W) = %f\n", __FILE__, __LINE__, atp);
+  //printf("[%s:%d] Average Idle Power(W) = %f\n", __FILE__, __LINE__, aip);
+  //printf("[%s:%d] Average Device Power(W) = %f\n", __FILE__, __LINE__, adp);
   printf("[%s:%d] RESULT time(s) = %f\n", __FILE__, __LINE__, t);
   printf("[%s:%d] RESULT energy(Wh) = %f\n", __FILE__, __LINE__, wh);
 }
